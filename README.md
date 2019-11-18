@@ -6,12 +6,16 @@ A recommendation at this point in time would also be to test this out in a lab e
 
 ## CHANGE LOG
 
+#### version 1.1.5 (2019-11-18)
+- Changed *'Get-StifleRDownload'* to *'done!'*
+- Added Cim* to ExcludedProperties from output of *'Get-StifleRClient'* and *'Get-StifleRSubnet'*
+
+<details><summary>View all</summary>
+
 #### version 1.1.4 (2019-11-18)
 - Added function *'Get-Download'* as *'In progress'*
 - Changd output of '*Get-StifleRServerSettings'* to a PSObject instead of a hashtable
 - Removed parameter *'SortByKeyName'* from *'Get-StifleRServerSettings'*
-
-<details><summary>View all</summary>
 
 #### version 1.1.3 (2019-11-15)
 - Changed *'Set-StifleRBITSJobs'* to **'Set-StifleRJob'**
