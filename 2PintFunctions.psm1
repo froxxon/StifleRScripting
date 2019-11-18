@@ -218,6 +218,9 @@ function Get-Client {
     .PARAMETER SubnetID
         Use this parameter if you want to display all clients on a specific subnet
 
+    .PARAMETER IsConnected
+        Use this parameter if you want to display all clients with a current connection
+
     .EXAMPLE
 	Get-StiflerClient -Client Client01 -Server 'server01'
         Pull information about the client Client01 from server01
@@ -243,8 +246,13 @@ function Get-Client {
         [Parameter(HelpMessage = "Specify specific properties",ParameterSetName = "Subnet")]
         [string]$SubnetID,
         [array]$Property,
+        [Parameter(ParameterSetName = "Client")]
         [switch]$ExactMatch,
-        [switch]$Roaming
+        [Parameter(ParameterSetName = "Roaming")]
+        [switch]$Roaming,
+        [Parameter(ParameterSetName = "Subnet")]
+        [Parameter(ParameterSetName = "Client")]
+        [switch]$IsConnected
     )
 
     begin {
@@ -256,27 +264,39 @@ function Get-Client {
         Write-Verbose "Check if server has the StifleR WMI-Namespace"
         Test-ServerConnection $Server
 
-        if ( $Property -ne '*' ) {
+        if ( $Roaming ) {
+            $Class = 'ClientsRoaming'
+        }
+        else {
+            $Class = 'Clients'
+        }
 
-            if ( $Roaming ) {
-                $Class = 'ClientsRoaming'
-            }
-            else {
-                $Class = 'Clients'
-            }
-            
+        if ( $IsConnected ) {
+            $Class = 'Connections'
+        }
+
+        if ( $Property -ne '*' ) {
+           
             $ClassProperties = (Get-CimClass -ComputerName $Server -ClassName $Class -Namespace $Namespace ).CimClassProperties.Name
             foreach ( $Prop in $($Property) ) {
                 if ( $ClassProperties -notcontains $Prop ) { $MissingProps += "$Prop" }
             }
             if ( $MissingProps.Count -gt 0 ) { 
                 $MissingProps = $MissingProps -join ', '
-                Write-Error -Message "One or more of the following properties couldn't be found in the Class Clients: $MissingProps"
+                Write-Error -Message "One or more of the following properties couldn't be found in the class $Class`: $MissingProps"
                 break
             }
         }
     
-        $defaultProperties = @(‘ComputerName’,'Version','Online')
+        if ( $IsConnected ) {
+            $defaultProperties = @(‘ComputerName’,'Version','LastCheckInTime','NetworkId')
+        }
+        elseif ( $Roaming ) {
+            $defaultProperties = @(‘ComputerName’,'Version')
+        }
+        else {
+            $defaultProperties = @(‘ComputerName’,'Version','Online')
+        }
         $defaultDisplayPropertySet = New-Object System.Management.Automation.PSPropertySet(‘DefaultDisplayPropertySet’,[string[]]$defaultProperties)
         $PSStandardMembers = [System.Management.Automation.PSMemberInfo[]]@($defaultDisplayPropertySet)
 
@@ -284,9 +304,13 @@ function Get-Client {
         if ( $Property -ne $Null -and $Property -notcontains '*' ) { $defaultProperties = $Property }
 
         if ( $SubnetID ) {
-            $VerifyIPaddress = $([bool]($SubnetID -as [ipaddress] -and ($SubnetID.ToCharArray() | ?{$_ -eq "."}).count -eq 3))
-            if ( $VerifyIPaddress ) {
-                if ( Get-Subnet -Server $Server -SubnetID $Target ) { $SubnetIDExist = $True }
+            [array]$SubnetExist = Get-Subnet -Server $Server -SubnetID $SubnetID
+            if ( $SubnetExist.Count -gt 0 ) {
+                $SubnetIDExist = $True
+            }
+            else {
+                Write-Warning "The provided SubnetID, $SubnetID does not exist, aborting!"
+                break
             }
         }
     }
@@ -294,18 +318,19 @@ function Get-Client {
     process {
         $ClientInformation = @()
         if ( $ExactMatch ) {
-            if ( $SubnetIDExist ) {
-                $id = $(Get-CIMInstance -Namespace $Namespace -Class Subnets -Filter "SubnetID LIKE '%$SubnetID%'" -ComputerName $Server).id
-                $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "LastOnNetwork = '$id'" -ComputerName $Server
-            }
-            else {
-                $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName = '$Client'" -ComputerName $Server
-            }
+            $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName = '$Client'" -ComputerName $Server
         }
         else {
             if ( $SubnetIDExist ) {
-                $id = $(Get-CIMInstance -Namespace $Namespace -Class Subnets -Filter "SubnetID LIKE '%$SubnetID%'" -ComputerName $Server).id
-                $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "LastOnNetwork = '$id'" -ComputerName $Server
+                $ids = $(Get-CIMInstance -Namespace $Namespace -Class Subnets -Filter "SubnetID LIKE '%$SubnetID%'" -ComputerName $Server).id
+                foreach ( $id in $ids ) {
+                    if ( $IsConnected ) {
+                        $ClientInformation += Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "NetworkGuid = '$id'" -ComputerName $Server
+                    }
+                    else {
+                        $ClientInformation += Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "LastOnNetwork = '$id'" -ComputerName $Server
+                    }
+                }
             }
             else {
                 $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName LIKE '%$Client%'" -ComputerName $Server
@@ -810,7 +835,7 @@ function Get-ServerSettings {
             [xml]$Content = Get-Content "\\$Server\$InstallDir\StifleR.Service.exe.config" -ErrorAction 1
             $Properties = @()
             $Properties += $Content.configuration.appSettings.add
-            $obj = new-object PSObject
+            $obj = New-Object PSObject
             foreach ( $Prop in $Properties | Sort-Object Key ) {
                 $obj | Add-Member -MemberType NoteProperty -Name $Prop.key -Value $Prop.value
             }            
@@ -921,7 +946,9 @@ function Get-SignalRHubHealth {
     }
 
     process {
-        Get-CIMInstance -Namespace $Namespace -Query "Select * from StiflerEngine WHERE id = 1" -ComputerName $Server | FL -property NumberOfClients, ActiveNetworks, ActiveRedLeaders,HubConnectionInitiated,HubConnectionCompleted,ClientINfoInitiated, ClientInfoCompleted, JobReportInitiated ,JobReportCompleted,JobReporDeltatInitiated,JobReportDeltaCompleted
+        $SignalRHealth = @()
+        $SignalRHealth = Get-CIMInstance -Namespace $Namespace -Query "Select * from StiflerEngine WHERE id = 1" -ComputerName $Server
+        $SignalRHealth | Select-Object NumberOfClients, ActiveNetworks, ActiveRedLeaders,HubConnectionInitiated,HubConnectionCompleted,ClientINfoInitiated, ClientInfoCompleted, JobReportInitiated ,JobReportCompleted,JobReporDeltatInitiated,JobReportDeltaCompleted
     }
 
 }
@@ -1914,18 +1941,13 @@ function Test-ServerConnection {
 
 }
 
-# In progress - Remaining, what to actually show?
-function Get-Connection {
+# In progress
+function Set-Leader {
 
     [cmdletbinding()]
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
-        [string]$Server = $env:COMPUTERNAME,
-        [string]$SubnetID,
-        [switch]$ActivelyTransfering,
-        [string]$ActiveBITSJobsIds,
-        [string]$ActiveDOJobIds,
-        [int]$Limit=1000
+        [string]$Server = $env:COMPUTERNAME
     )
 
     begin {
@@ -1935,23 +1957,12 @@ function Get-Connection {
     }
 
     process {
-        [string]$QueryAdditions = 'WHERE'
-        if ( $SubnetID -ne '' ) {
-            $QueryAdditions = "$QueryAdditions NetworkID='$SubnetID'"
-        }
-        if ( $ActivelyTransfering ) {
-            if ( $QueryAdditions -ne 'WHERE' ) { $QueryAdditions = "$QueryAdditions AND" }
-            $QueryAdditions = "$QueryAdditions ActivelyTransferring='$true'"
-        }
-        if ( $QueryAdditions -eq 'WHERE' ) { $QueryAdditions = '' }
-
-        write-Output $QueryAdditions
-        Get-CimInstance -Namespace $Namespace -Query "Select * from Connections $QueryAdditions" -ComputerName $Server | Select-Object -First $Limit
     }
+
 }
 
 # In progress
-function Set-Leader {
+function Set-Client {
 
     [cmdletbinding()]
     param (
