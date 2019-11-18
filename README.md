@@ -6,12 +6,18 @@ A recommendation at this point in time would also be to test this out in a lab e
 
 ## CHANGE LOG
 
+#### version 1.1.7 (2019-11-18)
+- Changed *'Get-StifleRSignalRHubHealth'* to return output as PSObject instead of hashtable
+- Reworked *'Get-StifleRClient'* quite a bit and also added the parameter IsConnected
+- Removed *'Get-Connection'* entirely, replaced with the above parameter IsConnected
+- Added *'Set-StifleRClient'* as *'In progress'*
+
+<details><summary>View all</summary>
+
 #### version 1.1.6 (2019-11-18)
 - Added parameter *'Roaming'* to *'Get-StifleRClient'*
 - Changed from *'Get-CimInstance*' to *'Get-CimClass'* to obtian properties of class in *'Get-StifleRClient'*,*'Get-StifleRDownload'* and *'Get-StifleRSubnet'*
 - Declared variables *'MissingProps*' and *'ClassProperties'* as arrays in *'Get-StifleRClient'* and *'Get-StifleRDownload'*
-
-<details><summary>View all</summary>
 
 #### version 1.1.5 (2019-11-18)
 - Changed *'Get-StifleRDownload'* to *'done!'*
@@ -120,9 +126,11 @@ For everything to work as expected the following requirements should be met:
 
 **Syntax**
 
-```Get-StiflerClient -Client <String[]> [-Server <String>] [-Property <Array>] [-ExactMatch] [-Roaming] [<CommonParameters>]```
+```Get-StiflerClient -Client <String[]> [-Server <String>] [-Property <Array>] [-ExactMatch] [-IsConnected] [<CommonParameters>]```
 
-```Get-StiflerClient [-Server <String>] [-SubnetID <String>] [-Property <Array>] [-ExactMatch] [-Roaming] [<CommonParameters>]```
+```Get-StiflerClient [-Server <String>] [-SubnetID <String>] [-Property <Array>] [-IsConnected] [<CommonParameters>]```
+
+```Get-StiflerClient [-Server <String>] [-Property <Array>] [-Roaming] [<CommonParameters>]```
 
 **Example** - Pull information about the client Client01 from server01
 
