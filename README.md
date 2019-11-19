@@ -6,13 +6,16 @@ A recommendation at this point in time would also be to test this out in a lab e
 
 ## CHANGE LOG
 
+#### version 1.1.8 (2019-11-19)
+- Corrected one missing " that caused a failure when using *'Set-StifleRServerSettings'*
+
+<details><summary>View all</summary>
+
 #### version 1.1.7 (2019-11-18)
 - Changed *'Get-StifleRSignalRHubHealth'* to return output as PSObject instead of hashtable
 - Reworked *'Get-StifleRClient'* quite a bit and also added the parameter IsConnected
 - Removed *'Get-Connection'* entirely, replaced with the above parameter IsConnected
 - Added *'Set-StifleRClient'* as *'In progress'*
-
-<details><summary>View all</summary>
 
 #### version 1.1.6 (2019-11-18)
 - Added parameter *'Roaming'* to *'Get-StifleRClient'*
