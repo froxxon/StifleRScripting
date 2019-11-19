@@ -6,10 +6,15 @@ A recommendation at this point in time would also be to test this out in a lab e
 
 ## CHANGE LOG
 
-#### version 1.1.8 (2019-11-19)
-- Corrected one missing " that caused a failure when using *'Set-StifleRServerSettings'*
+#### version 1.1.9 (2019-11-19)
+- Added the parameter *'Method'* to *'Get-StifleRClient'*, available options for this parameter are *'GetBranchCacheFlags'* and *'GetConnectionFlags'*
+- Changed params quite a bit in *'Get-StifleRClient'*
+- Changed EXAMPLES in CBH for *'Get-StifleRClient'*
 
 <details><summary>View all</summary>
+
+#### version 1.1.8 (2019-11-19)
+- Corrected one missing " that caused a failure when using *'Set-StifleRServerSettings'*
 
 #### version 1.1.7 (2019-11-18)
 - Changed *'Get-StifleRSignalRHubHealth'* to return output as PSObject instead of hashtable
@@ -129,23 +134,25 @@ For everything to work as expected the following requirements should be met:
 
 **Syntax**
 
-```Get-StiflerClient -Client <String[]> [-Server <String>] [-Property <Array>] [-ExactMatch] [-IsConnected] [<CommonParameters>]```
+```Get-StiflerClient [-Client] <string[]> [-Server <string>] [-Property <array>] [-ExactMatch] [-IsConnected] [<CommonParameters>]```
 
-```Get-StiflerClient [-Server <String>] [-SubnetID <String>] [-Property <Array>] [-IsConnected] [<CommonParameters>]```
+```Get-StiflerClient -Client <string[]> [-Server <string>] [-Method <string>] [<CommonParameters>]```
 
-```Get-StiflerClient [-Server <String>] [-Property <Array>] [-Roaming] [<CommonParameters>]```
+```Get-StiflerClient [-Server <string>] [-SubnetID <string>] [-Property <array>] [-IsConnected] [<CommonParameters>]```
+
+```Get-StiflerClient [-Server <string>] [-Property <array>] [-Roaming] [<CommonParameters>]```
 
 **Example** - Pull information about the client Client01 from server01
 
     Get-StiflerClient -Client Client01 -Server 'server01'
 
-**Example 2** - Pull clients with pipeline where ComputerName like 'Clien' from server01
+**Example 2** - Get-StifleRClient -Server 'server01' -SubnetID 192. -IsConnected
 
-    'Clien' | Get-StiflerClient -Server 'server01'
+    Get-StifleRClient -Server 'server01' -SubnetID 192. -IsConnected
 
-**Example 3** - Pull client with pipeline where ComputerName equals 'Client01' from server01
+**Example 3** - Get current connections flags from client01
 
-    'Client01' | Get-StiflerClient -Server 'server01' -ExactMatch
+    Get-StifleRClient -Server 'server01' -Client 'client01' -Method GetConnectionFlags
 </details>
 
 **<details><summary>Get-StifleRClientVersion</summary>**
