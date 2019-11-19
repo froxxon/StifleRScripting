@@ -1699,8 +1699,8 @@ function Set-ServerSettings {
         try {
             Write-Verbose "Get config file : [string]$Content = Get-Content ""\\$Server\$InstallDir\StifleR.Service.exe.config"" -Raw"
             [string]$Content = Get-Content "\\$Server\$InstallDir\StifleR.Service.exe.config" -Raw
-            Write-Verbose "Replacing and saving content : $Content.Replace(""add key=""$CurrentKeyName"" value=""$CurrentValue""","add key=""$CurrentKeyName"" value=""$NewValue"""") | out-file ""\\$Server\$InstallDir\StifleR.Service.exe.config"" -Encoding utf8 -Force -NoNewline"
-            $Content.Replace("add key=""$CurrentKeyName"" value=""$CurrentValue""","add key=""$CurrentKeyName"" value=""$NewValue""") | out-file "\\$Server\$InstallDir\StifleR.Service.exe.config" -Encoding utf8 -Force -NoNewline
+            Write-Verbose "Replacing and saving content : $Content.Replace(""add key=""$CurrentKeyName"" value=""$CurrentValue"""",""add key=""$CurrentKeyName"" value=""$NewValue"""") | out-file ""\\$Server\$InstallDir\StifleR.Service.exe.config"" -Encoding utf8 -Force -NoNewline"
+            $Content = $Content.Replace("add key=""$CurrentKeyName"" value=""$CurrentValue""","add key=""$CurrentKeyName"" value=""$NewValue""") | out-file "\\$Server\$InstallDir\StifleR.Service.exe.config" -Encoding utf8 -Force -NoNewline
             Write-Output "Successfully updated the property $Property in StifleR Server from $CurrentValue to $NewValue."
             Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9210 -Message "Successfully updated the property $Property in StifleR Server from $CurrentValue to $NewValue." -EntryType Information
         }
