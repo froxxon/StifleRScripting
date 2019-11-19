@@ -221,30 +221,39 @@ function Get-Client {
     .PARAMETER IsConnected
         Use this parameter if you want to display all clients with a current connection
 
+    .PARAMETER Method
+        Use this parameter if you want to get specified WMI information from the client,
+        available options are 'GetBranchCacheFlags' and 'GetConnectionFlags'
+        Can only return values from a single client per run
+
     .EXAMPLE
 	Get-StiflerClient -Client Client01 -Server 'server01'
         Pull information about the client Client01 from server01
 
     .EXAMPLE
-	'Clien' | Get-StiflerClient -Server server01
-        Pull clients with pipeline where ComputerName like 'Clien' from server01
+	Get-StifleRClient -Server server01 -SubnetID 192. -IsConnected
+        Get all clients from subnet 192.* that have an active connection at the moment
     
     .EXAMPLE
-	'Client01' | Get-StiflerClient -Server server01 -ExactMatch
-        Pull client with pipeline where ComputerName equals 'Client01' from server01
+	Get-StifleRClient -Server server01 -Client client01 -Method GetConnectionFlags
+        Get current connections flags from client01
 
     .FUNCTIONALITY
         StifleR
     #>
 
-    [cmdletbinding()]
+    [cmdletbinding(DefaultParameterSetName='Client')]
     param (
-        [Parameter(Mandatory, HelpMessage = "Specify the client you want to retrieve information about", ValueFromPipeline, ValueFromPipelineByPropertyName,ParameterSetName = "Client")][ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory,HelpMessage = "Specify the client you want to retrieve information about",ValueFromPipeline, ValueFromPipelineByPropertyName,ParameterSetName = "Client")]
+        [Parameter(Mandatory,ParameterSetName = "Methods")]
         [string[]]$Client,
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
         [string]$Server = $env:COMPUTERNAME,
         [Parameter(HelpMessage = "Specify specific properties",ParameterSetName = "Subnet")]
         [string]$SubnetID,
+        [Parameter(ParameterSetName = "Client")]
+        [Parameter(ParameterSetName = "Roaming")]
+        [Parameter(ParameterSetName = "Subnet")]
         [array]$Property,
         [Parameter(ParameterSetName = "Client")]
         [switch]$ExactMatch,
@@ -252,7 +261,10 @@ function Get-Client {
         [switch]$Roaming,
         [Parameter(ParameterSetName = "Subnet")]
         [Parameter(ParameterSetName = "Client")]
-        [switch]$IsConnected
+        [switch]$IsConnected,
+        [Parameter(ParameterSetName = "Methods")]
+        [ValidateSet('GetBranchCacheFlags','GetConnectionFlags')]
+        [string]$Method
     )
 
     begin {
@@ -316,38 +328,60 @@ function Get-Client {
     }
 
     process {
-        $ClientInformation = @()
-        if ( $ExactMatch ) {
-            $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName = '$Client'" -ComputerName $Server
-        }
-        else {
-            if ( $SubnetIDExist ) {
-                $ids = $(Get-CIMInstance -Namespace $Namespace -Class Subnets -Filter "SubnetID LIKE '%$SubnetID%'" -ComputerName $Server).id
-                foreach ( $id in $ids ) {
-                    if ( $IsConnected ) {
-                        $ClientInformation += Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "NetworkGuid = '$id'" -ComputerName $Server
-                    }
-                    else {
-                        $ClientInformation += Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "LastOnNetwork = '$id'" -ComputerName $Server
+
+        if ( $PSCmdlet.ParameterSetName -eq 'Methods' ) {
+            $MethodObj = New-Object PSObject
+            $MethodResult = @()
+            $MethodResult = $(Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Connections Where ComputerName = '$Client'" -MethodName $Method -ComputerName $Server).ReturnValue -Split "`r`n"
+            if ( $MethodResult ) {
+                foreach ( $line in $MethodResult ) {
+                    if ( $line -ne '' ) {
+                        $Temp = $($line.Split(';'))[0]
+                        $Name = $Temp.Substring($temp.IndexOf(']')+1,$temp.Length - $temp.IndexOf(']')-1)
+                        $MethodObj | Add-member -MemberType NoteProperty -Name $Name -Value $line.split(';')[1] -Force
                     }
                 }
             }
+
+            if ( !$MethodResult ) {
+                Write-Warning "The provided Client is missing an active connection in StifleR, aborting!"
+            }
             else {
-                $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName LIKE '%$Client%'" -ComputerName $Server
+                return $MethodObj
             }
         }
-        $ClientInformation | Add-Member MemberSet PSStandardMembers $PSStandardMembers
-    }
-
-    end {
-        if ( $ClientInformation.Count -eq 0 ) {
-            Write-Warning "No events found with the matching criterias, aborting!"
-        }
         else {
-            $ClientInformation | Select-Object $defaultProperties -ExcludeProperty PSComputerName,Cim*
+            $ClientInformation = @()
+            if ( $ExactMatch ) {
+                $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName = '$Client'" -ComputerName $Server
+            }
+            else {
+                if ( $SubnetIDExist ) {
+                    $ids = $(Get-CIMInstance -Namespace $Namespace -Class Subnets -Filter "SubnetID LIKE '%$SubnetID%'" -ComputerName $Server).id
+                    foreach ( $id in $ids ) {
+                        if ( $IsConnected ) {
+                            $ClientInformation += Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "NetworkGuid = '$id'" -ComputerName $Server
+                        }
+                        else {
+                            $ClientInformation += Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "LastOnNetwork = '$id'" -ComputerName $Server
+                        }
+                    }
+                }
+                else {
+                    $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName LIKE '%$Client%'" -ComputerName $Server
+                }
+            }
+            $ClientInformation | Add-Member MemberSet PSStandardMembers $PSStandardMembers
+        
+            if ( $ClientInformation.Count -eq 0 ) {
+                Write-Warning "No events found with the matching criterias, aborting!"
+            }
+            else {
+                $ClientInformation | Select-Object $defaultProperties -ExcludeProperty PSComputerName,Cim*
+            }        
         }
     }
-
+    
 }
 
 function Get-ClientVersion {
@@ -1967,7 +2001,21 @@ function Set-Client {
     [cmdletbinding()]
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
-        [string]$Server = $env:COMPUTERNAME
+        [string]$Server = $env:COMPUTERNAME,
+        [Parameter(Mandatory)]
+        [string]$Client,
+        [Parameter(ParameterSetName = "WOL")]
+        [switch]$WOL,
+        [Parameter(ParameterSetName = "BranchCacheFlush")]
+        [switch]$BranchCacheFlush,
+        [Parameter(Mandatory,ParameterSetName = "BranchCacheFlush")]
+        [string]$ContentID,
+        [Parameter(ParameterSetName = "Disconnect")]
+        [switch]$Disconnect,
+        [Parameter(ParameterSetName = "SetClientAsNonLeader")]
+        [switch]$SetClientAsNonLeader,
+        [Parameter(ParameterSetName = "SetNotLeaderMaterial")]
+        [switch]$SetNotLeaderMaterial
     )
 
     begin {
@@ -1977,6 +2025,39 @@ function Set-Client {
     }
 
     process {
+        if ( $PSCmdlet.ParameterSetName -eq 'BranchCacheFlush' ) {
+            $Arguments = @{ ContentID = $ContentID }
+        }
+
+        if ( $WOL ) {
+            $Class = 'Clients'
+        }
+        else {
+            $Class = 'Connections'
+        }
+        [array]$Clients = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class $Class -Filter "ComputerName LIKE '%$Client%'").ComputerName
+
+        Write-Debug ""
+        if ( $Clients.Count -gt 0 ) {
+            foreach ( $ClientObj in $Clients ) {
+                try {
+                    Write-Verbose "Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM $Class Where ComputerName = '$ClientObj'"" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments "
+                    $MethodResult = Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM $Class Where ComputerName = '$ClientObj'" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments #| out-null
+                    $MethodResult.ReturnValue
+                }
+                catch {
+                }
+            }
+        }
+        else {
+            if ( !$WOL ) {
+                $TempString = ' online '
+            }
+            else {
+                $TempString = ' found '
+            }
+            Write-Warning "No clients $TempString with the provided value of parameter Client, aborting!"
+        }
     }
 
 }
