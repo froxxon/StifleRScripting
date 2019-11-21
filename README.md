@@ -140,9 +140,9 @@ For everything to work as expected the following requirements should be met:
 
 **Syntax**
 
-```Get-StiflerClient [-Client] <string[]> [-Server <string>] [-Property <array>] [-ExactMatch] [-IsConnected] [<CommonParameters>]```
+```Get-StiflerClient -Client <string[]> [-Server <string>] [-Property <array>] [-ExactMatch] [-IsConnected] [<CommonParameters>]```
 
-```Get-StiflerClient -Client <string[]> [-Server <string>] [-Method <string>] [<CommonParameters>]```
+```Get-StiflerClient -Client <string[]> [-Server <string>] [-Roaming] [-Method <string>] [<CommonParameters>]```
 
 ```Get-StiflerClient [-Server <string>] [-SubnetID <string>] [-Property <array>] [-IsConnected] [<CommonParameters>]```
 
