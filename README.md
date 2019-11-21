@@ -6,12 +6,18 @@ A recommendation at this point in time would also be to test this out in a lab e
 
 ## CHANGE LOG
 
+#### version 1.2.0 (2019-11-21)
+- The parameter *'Method'* nor also works with *'Roaming'* in function *'Get-StifleRClient'* 
+- Added parametersets to *'Get-StifleREventLog'*
+- Added check for Child subnets before deletion with *'Remove-StifleRSubnet'*
+- Added parameters *'RemoveChildLink'* and *'LinkToParent'* to *'Set-StifleRSubnet'*
+
+<details><summary>View all</summary>
+
 #### version 1.1.9 (2019-11-19)
 - Added the parameter *'Method'* to *'Get-StifleRClient'*, available options for this parameter are *'GetBranchCacheFlags'* and *'GetConnectionFlags'*
 - Changed params quite a bit in *'Get-StifleRClient'*
 - Changed EXAMPLES in CBH for *'Get-StifleRClient'*
-
-<details><summary>View all</summary>
 
 #### version 1.1.8 (2019-11-19)
 - Corrected one missing " that caused a failure when using *'Set-StifleRServerSettings'*
@@ -190,7 +196,9 @@ For everything to work as expected the following requirements should be met:
     
 **Syntax**
 
-```Get-StiflerEventLog [[-Server] <String>] [[-MaxEvents] <Int32>] [[-EventID] <Array>] [[-Message] <String>] [[-LevelDisplayName]<String>] [[-ProviderName] <String>] [[-StartDate] <DateTime>] [[-EndDate] <DateTime>] [-ListLog] [<CommonParameters>]```
+```Get-StiflerEventLog [-Server <string>] [-MaxEvents <int>] [-EventID <array>] [-Message <string>] [-LevelDisplayName <string>] [-ProviderName <string>] [-StartDate <datetime>] [-EndDate <datetime>] [<CommonParameters>]```
+
+```Get-StiflerEventLog [-Server <string>] [-ListLog] [<CommonParameters>]```
 
 **Example** - Get the 10 latest events from server01 and sort them by Id, default is by ascending TimeCreated
 
@@ -406,7 +414,11 @@ childobjects of this subnet
 
 **Syntax**
 
-```Set-StiflerSubnet [-SubnetID] <String> [-Server <String>] -Property <String> -NewValue <String> [<CommonParameters>]```
+```Set-StiflerSubnet -SubnetID <string> -Property <string> -NewValue <string> [-Server <string>] [<CommonParameters>]```
+
+```Set-StiflerSubnet -SubnetID <string> [-Server <string>] [-RemoveChildLink <string>] [<CommonParameters>]```
+
+```Set-StiflerSubnet -SubnetID <string> [-Server <string>] [-LinkToParent <string>] [<CommonParameters>]```
 
 **Example** - Sets the property VPN to True on subnet 172.10.10.0
 
