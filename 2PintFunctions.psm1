@@ -1391,24 +1391,29 @@ function Remove-Subnet {
             break
         }
 
+        [bool]$ChildFound = $false
+        foreach ( $Subnet in $Subnets ) {
+            if ( $Subnet.ChildCount -ne 0 ) {
+                $ChildFound = $true
+            }
+        }
+
         Write-Verbose "Variable - SkipConfirm : $SkipCOnfirm"
         if ( !$SkipConfirm ) {
             Write-Output "You are about to delete $($Subnets.Count) subnet(s) listed below:"
+            if ( $ChildFound -eq $true ) {
+                Write-Output "ALL CHILD SUBNETS WILL ALSO BE REMOVED IF YOU CONTINUE !!!"
+            }
             Write-Output " "
-            [bool]$ChildFound = $false
             foreach ( $Subnet in $Subnets ) {
                 $ChildCount = ''
                 if ( $Subnet.ChildCount -ne 0 ) {
                     $ChildCount = "ChildCount: $($Subnet.ChildCOunt)"
-                    $ChildFound = $true
                 }
                 Write-Output "SubnetID: $($Subnet.SubnetID) LocationName: $($Subnet.LocationName) $ChildCount"
             }
             Write-Output " "
-            if ( $ChildFound ) {
-                Write-Warning "Childobjects exist, use parameter DeleteChildren or remove first, aborting!"
-                break
-            }
+
             $msg = "Are you sure? [Y/N]"
             do {
                 $response = Read-Host -Prompt $msg
@@ -1418,35 +1423,43 @@ function Remove-Subnet {
             }
             Write-Output " "
         }
-        
-        foreach ( $Subnet in $Subnets ) {
-            if ( $PsCmdlet.ParameterSetName -eq 'LocationName' ) {
-                Write-Debug "Next step - Removing subnet based on LocationName"
-            }
-            else {
-                Write-Debug "Next step - Removing subnet based on SubnetID"
-            }
 
-            try {
+        if ( !$ChildFound -or $DeleteChildren ) {
+            foreach ( $Subnet in $Subnets ) {
                 if ( $PsCmdlet.ParameterSetName -eq 'LocationName' ) {
-                    Write-Verbose "Removing subnet: Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Subnets Where LocationName = '$($Subnet.LocationName)'"" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null"
-                    Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where LocationName = '$($Subnet.LocationName)'" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null
+                    Write-Debug "Next step - Removing subnet based on LocationName"
                 }
                 else {
-                    Write-Verbose "Removing subnet: Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Subnets Where SubnetID = '$($Subnet.SubnetID)'"" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null"
-                    Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$($Subnet.SubnetID)'" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null
+                    Write-Debug "Next step - Removing subnet based on SubnetID"
                 }
-                if ( !$Quiet ) {
-                    Write-Output "Successfully removed SubnetID: $($Subnet.SubnetID) LocationName: $($Subnet.LocationName)"
+
+                try {
+                    if ( $PsCmdlet.ParameterSetName -eq 'LocationName' ) {
+                        Write-Verbose "Removing subnet: Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Subnets Where LocationName = '$($Subnet.LocationName)'"" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null"
+                        Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where LocationName = '$($Subnet.LocationName)'" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null
+                    }
+                    else {
+                        Write-Verbose "Removing subnet: Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Subnets Where SubnetID = '$($Subnet.SubnetID)'"" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null"
+                        Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$($Subnet.SubnetID)'" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null
+                    }
+                    if ( !$Quiet ) {
+                        If ( $ChildFound ) {
+                            $TempString = "as well as all child subnets"
+                        }
+                        Write-Output "Successfully removed SubnetID: $($Subnet.SubnetID) LocationName: $($Subnet.LocationName) $TempString "
+                    }
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9206 -Message "Successfully removed subnet $($Subnet.SubnetID) (LocationName: $($Subnet.LocationName)) $TempString with the argument DeleteChildren = $DeleteChildren" -EntryType Information
                 }
-                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9206 -Message "Successfully removed subnet $($Subnet.SubnetID) (LocationName: $($Subnet.LocationName)) with the argument DeleteChildren = $DeleteChildren" -EntryType Information
+                catch {
+                    Write-Warning "Failed to remove SubnetID: $($Subnet.SubnetID) LocationName: $($Subnet.LocationName)"
+                    if ( !$Quiet ) {
+                        Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9207 -Message "Failed to remove subnet $($Subnet.SubnetID) (LocationName: $($Subnet.LocationName)) with the argument DeleteChildren = $DeleteChildren" -EntryType Error
+                    }
+                }
             }
-            catch {
-                Write-Warning "Failed to remove SubnetID: $($Subnet.SubnetID) LocationName: $($Subnet.LocationName)"
-                if ( !$Quiet ) {
-                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9207 -Message "Failed to remove subnet $($Subnet.SubnetID) (LocationName: $($Subnet.LocationName)) with the argument DeleteChildren = $DeleteChildren" -EntryType Error
-                }
-            }
+        }
+        else {
+            Write-Warning "Childobjects exist, use parameter DeleteChildren or remove first, aborting!"
         }
     }
 
@@ -1844,10 +1857,12 @@ function Set-Subnet {
                         Write-Debug "Next step - Linking child subnet $SubnetID to parent $LinkToParent"
                         try {
                             Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$SubnetID'" -MethodName LinkWIthSubnet -ComputerName $Server -Arguments $Arguments -ErrorAction Stop | out-null
-                            Write-Output "Successful!"
+                            Write-Output "Successfully linked subnet $SubnetID to parent $LinkToParent"
+                            Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9220 -Message "Successfully linked subnet $SubnetID to parent $LinkToParent" -EntryType Information
                         }
                         catch {
-                            Write-Output "Fail!"
+                            Write-Warning "Failed to link subnet $SubnetID to parent $LinkToParent"
+                            Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9221 -Message "Failed to link subnet $SubnetID to parent $LinkToParent" -EntryType Error
                         }
                     }
                     else {
@@ -1873,10 +1888,12 @@ function Set-Subnet {
                         Write-Debug "Next step - Removing child subnet $RemoveChildLink from parent $SubnetID"
                         try {
                             Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM ParentLocations Where SubnetID = '$SubnetID'" -MethodName RemoveChild -ComputerName $Server -Arguments $Arguments -ErrorAction Stop | out-null
-                            Write-Output "Successful!"
+                            Write-Output "Successfully removed subnet $RemoveChildLink from parent $SubnetID."
+                            Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9222 -Message "Successfully removed subnet $RemoveChildLink from parent $SubnetID." -EntryType Information
                         }
                         catch {
-                            Write-Output "Fail!"
+                            Write-Warning "Failed to remove subnet $RemoveChildLink from parent $SubnetID."
+                            Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9223 -Message "Failed to remove subnet $RemoveChildLink from parent $SubnetID." -EntryType Error
                         }
                     }
                     else {
