@@ -258,6 +258,7 @@ function Get-Client {
         [Parameter(ParameterSetName = "Client")]
         [switch]$ExactMatch,
         [Parameter(ParameterSetName = "Roaming")]
+        [Parameter(ParameterSetName = "Methods")]
         [switch]$Roaming,
         [Parameter(ParameterSetName = "Subnet")]
         [Parameter(ParameterSetName = "Client")]
@@ -330,9 +331,15 @@ function Get-Client {
     process {
 
         if ( $PSCmdlet.ParameterSetName -eq 'Methods' ) {
+            if ( $Roaming ) {
+                $Class = 'ClientsRoaming'
+            }
+            else {
+                $Class = 'Connections'
+            }
             $MethodObj = New-Object PSObject
             $MethodResult = @()
-            $MethodResult = $(Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Connections Where ComputerName = '$Client'" -MethodName $Method -ComputerName $Server).ReturnValue -Split "`r`n"
+            $MethodResult = $(Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM $Class Where ComputerName = '$Client'" -MethodName $Method -ComputerName $Server).ReturnValue -Split "`r`n"
             if ( $MethodResult ) {
                 foreach ( $line in $MethodResult ) {
                     if ( $line -ne '' ) {
@@ -587,19 +594,28 @@ function Get-EventLog {
         StifleR
     #>
 
-    [cmdletbinding()]
-    param (
+    [cmdletbinding(DefaultParameterSetName='GetLog')]
+
+   param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
         [string]$Server = $env:COMPUTERNAME,
+        [Parameter(ParameterSetName = "GetLog")]
         [int]$MaxEvents = 1000,
+        [Parameter(ParameterSetName = "GetLog")]
         [array]$EventID,
+        [Parameter(ParameterSetName = "GetLog")]
         [string]$Message,
+        [Parameter(ParameterSetName = "GetLog")]
         [ValidateSet('Trace','Debug','Information','Warning','Error','Critical')]
         [string]$LevelDisplayName,
         [ValidateSet('All','StifleR','StifleRBeacon','StifleRClient','StifleRServer')]
+        [Parameter(ParameterSetName = "GetLog")]
         [string]$ProviderName='StifleRServer',
+        [Parameter(ParameterSetName = "GetLog")]
         [datetime]$StartDate,
+        [Parameter(ParameterSetName = "GetLog")]
         [datetime]$EndDate,
+        [Parameter(ParameterSetName = "ListLog")]
         [switch]$ListLog
     )
 
@@ -1032,15 +1048,18 @@ function Get-Subnet {
         StifleR
     #>
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName='Subnet')]
     param (
-        [Parameter(Position=0,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,HelpMessage = "This parameter is used if you want to query SubnetID(s)")]
+        [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
+        [string]$Server = $env:COMPUTERNAME,
+        #[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,HelpMessage = "This parameter is used if you want to query SubnetID(s)")]
+        [Parameter(Mandatory,HelpMessage = "Specify the subnet you want to retrieve information about",ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Parameter(ParameterSetName ='Subnet')]
         [String]$SubnetID='*',
         [Parameter(HelpMessage = "This parameter is used if you want to query LocationName(s)")]
+        [Parameter(Mandatory,ParameterSetName='LocationName')]
         [Alias('Identity')]
         [String]$LocationName='*',
-        [Parameter(Position=1,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
-        [string]$Server = $env:COMPUTERNAME,
         [Parameter(HelpMessage = "This parameter is used if you want to query for specific properties")]
         [Array]$Property,
         [switch]$ShowRedLeader,
@@ -1327,15 +1346,16 @@ function Remove-Subnet {
         StifleR
     #>
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName='Subnet')]
     param (
-        [Parameter(Position=0,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,ValueFromRemainingArguments=$true,Mandatory=$true,ParameterSetName = "LocationName")]
-        [Alias('Identity')]
-        [String]$LocationName,
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
         [string]$Server = $env:COMPUTERNAME,
-        [Parameter(Position=2,Mandatory=$true,ParameterSetName = "SubnetID")]
+        [Parameter(ValueFromPipeline,ValueFromPipelineByPropertyName)]
+        [Parameter(Mandatory,ParameterSetName = "Subnet")]
         [String]$SubnetID,
+        [Parameter(Mandatory,ParameterSetName = "LocationName")]
+        [Alias('Identity')]
+        [String]$LocationName,
         [switch]$DeleteChildren,
         [switch]$SkipConfirm,
         [switch]$Quiet
@@ -1375,10 +1395,20 @@ function Remove-Subnet {
         if ( !$SkipConfirm ) {
             Write-Output "You are about to delete $($Subnets.Count) subnet(s) listed below:"
             Write-Output " "
+            [bool]$ChildFound = $false
             foreach ( $Subnet in $Subnets ) {
-                Write-Output "SubnetID: $($Subnet.SubnetID) LocationName: $($Subnet.LocationName)"
+                $ChildCount = ''
+                if ( $Subnet.ChildCount -ne 0 ) {
+                    $ChildCount = "ChildCount: $($Subnet.ChildCOunt)"
+                    $ChildFound = $true
+                }
+                Write-Output "SubnetID: $($Subnet.SubnetID) LocationName: $($Subnet.LocationName) $ChildCount"
             }
             Write-Output " "
+            if ( $ChildFound ) {
+                Write-Warning "Childobjects exist, use parameter DeleteChildren or remove first, aborting!"
+                break
+            }
             $msg = "Are you sure? [Y/N]"
             do {
                 $response = Read-Host -Prompt $msg
@@ -1680,7 +1710,7 @@ function Set-ServerSettings {
         StifleR
     #>
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName='NewValue')]
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
         [string]$Server = $env:COMPUTERNAME,
@@ -1770,23 +1800,30 @@ function Set-Subnet {
         This will be the server hosting the StifleR Server-service.
 
     .EXAMPLE
-	Set-StifleRSubnetProperty -Server server01 -SubnetID 172.10.10.0 -Property VPN -NewValue True
+	Set-StifleRSubnet -Server server01 -SubnetID 172.10.10.0 -Property VPN -NewValue True
         Sets the property VPN to True on subnet 172.10.10.0
 
     .FUNCTIONALITY
         StifleR
     #>
 
-    [cmdletbinding()]
+    [cmdletbinding(DefaultParameterSetName='NewValue')]
     param (
-        [Parameter(Position=0,ValueFromPipeline,ValueFromPipelineByPropertyName,Mandatory=$true)]
-        [string]$SubnetID,
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
         [string]$Server = $env:COMPUTERNAME,
-        [Parameter(Mandatory=$true)]
+        [Parameter(ValueFromPipeline,ValueFromPipelineByPropertyName)]
+        [Parameter(Mandatory,ParameterSetName='NewValue')]
+        [Parameter(Mandatory,ParameterSetName='LinkToParent')]
+        [Parameter(Mandatory,ParameterSetName='RemoveChildLink')]
+        [string]$SubnetID,
+        [Parameter(Mandatory,ParameterSetName='NewValue')]
         [string]$Property,
-        [Parameter(Mandatory=$true)]
-        [string]$NewValue
+        [Parameter(Mandatory,ParameterSetName='NewValue')]
+        [string]$NewValue,
+        [Parameter(ParameterSetName='LinkToParent')]
+        [string]$LinkToParent,
+        [Parameter(ParameterSetName='RemoveChildLink')]
+        [string]$RemoveChildLink
     )
 
     begin {
@@ -1796,23 +1833,83 @@ function Set-Subnet {
     }
 
     process {
-        Write-Verbose "Getting subnet(s) by SubnetID - Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class Subnets -Filter ""SubnetID = '$SubnetID'"""
-        if ( !$(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class Subnets -Filter "SubnetID = '$SubnetID'") ) {
-            Write-Output "SubnetID $SubnetID does not exist, aborting!"
-            break
+        if ( $PSCmdlet.ParameterSetName -eq 'LinkToParent' ) {
+            $Linked = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class ParentLocations -Property ChildSubnetNetworkID -Filter "SubnetID = '$LinkToParent'").ChildSubnetNetworkID
+            if ( $Linked -notcontains $SubnetID ) {
+                $SubnetInfo = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class Subnets -Property id -Filter "SubnetID = '$SubnetID'").id
+                if ( $SubnetInfo ) {
+                    $id = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class Subnets -Property id -Filter "SubnetID = '$LinkToParent'").id
+                    if ( $id ) {
+                        $Arguments = @{ parentGUID = $id }
+                        Write-Debug "Next step - Linking child subnet $SubnetID to parent $LinkToParent"
+                        try {
+                            Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$SubnetID'" -MethodName LinkWIthSubnet -ComputerName $Server -Arguments $Arguments -ErrorAction Stop | out-null
+                            Write-Output "Successful!"
+                        }
+                        catch {
+                            Write-Output "Fail!"
+                        }
+                    }
+                    else {
+                        Write-Warning "The subnet provided for parameter LinkToParent could not be found, aborting!"
+                    }
+                }
+                else {
+                    Write-Warning "The subnet provided for parameter SubnetID could not be found, aborting!"
+                }
+            }
+            else {
+                Write-Warning "The provided subnet is already a child of the parent, aborting!"
+            }
         }
+        if ( $PSCmdlet.ParameterSetName -eq 'RemoveChildLink' ) {
+            $Linked = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class ParentLocations -Property ChildSubnetNetworkID -Filter "SubnetID = '$SubnetID'").ChildSubnetNetworkID
+            if ( $Linked -contains $RemoveChildLink ) {
+                $SubnetInfo = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class ParentLocations -Property id -Filter "SubnetID = '$SubnetID'").id
+                if ( $SubnetInfo ) {
+                    $id = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class Subnets -Property id -Filter "SubnetID = '$RemoveChildLink'").id
+                    if ( $id ) {
+                        $Arguments = @{ childGUID = $id }
+                        Write-Debug "Next step - Removing child subnet $RemoveChildLink from parent $SubnetID"
+                        try {
+                            Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM ParentLocations Where SubnetID = '$SubnetID'" -MethodName RemoveChild -ComputerName $Server -Arguments $Arguments -ErrorAction Stop | out-null
+                            Write-Output "Successful!"
+                        }
+                        catch {
+                            Write-Output "Fail!"
+                        }
+                    }
+                    else {
+                        Write-Warning "The subnet provided for parameter RemoveLink could not be found, aborting!"
+                    }
+                }
+                else {
+                    Write-Warning "The subnet provided for parameter SubnetID could not be found, aborting!"
+                }
+            }
+            else {
+                Write-Warning "The provided subnet is not a child of this parent, aborting!"
+            }
+        }
+        if ( $PSCmdlet.ParameterSetName -eq 'NewValue' ) {
+            Write-Verbose "Getting subnet(s) by SubnetID - Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class Subnets -Filter ""SubnetID = '$SubnetID'"""
+            if ( !$(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class Subnets -Filter "SubnetID = '$SubnetID'") ) {
+                Write-Output "SubnetID $SubnetID does not exist, aborting!"
+                break
+            }
 
-        Write-Debug "Next step - Set subnet property"
-        try {
-            $SubnetQuery = "SELECT * FROM Subnets WHERE SubnetID = '$SubnetID'"
-            Write-Verbose "Set subnet property : Set-CimInstance -Namespace $Namespace -Query $SubnetQuery -Property @{$Property = $NewValue} -ComputerName $Server"
-            Set-CimInstance -Namespace $Namespace -Query $SubnetQuery -Property @{$Property = $NewValue} -ComputerName $Server
-            Write-Output "Successfully updated '$Property' with the new value '$NewValue' on subnet $SubnetID."
-            Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9208 -Message "Successfully updated the property $Property to $NewValue on subnet $SubnetID." -EntryType Information
-        }
-        catch {
-            Write-Warning "Failed to update $Property with the new value $NewValue on subnet $SubnetID, make sure the property exist!"
-            Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9208 -Message "Failed to update the property $Property to $NewValue on subnet $SubnetID." -EntryType Error
+            Write-Debug "Next step - Set subnet property"
+            try {
+                $SubnetQuery = "SELECT * FROM Subnets WHERE SubnetID = '$SubnetID'"
+                Write-Verbose "Set subnet property : Set-CimInstance -Namespace $Namespace -Query $SubnetQuery -Property @{$Property = $NewValue} -ComputerName $Server"
+                Set-CimInstance -Namespace $Namespace -Query $SubnetQuery -Property @{$Property = $NewValue} -ComputerName $Server
+                Write-Output "Successfully updated '$Property' with the new value '$NewValue' on subnet $SubnetID."
+                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9208 -Message "Successfully updated the property $Property to $NewValue on subnet $SubnetID." -EntryType Information
+            }
+            catch {
+                Write-Warning "Failed to update $Property with the new value $NewValue on subnet $SubnetID, make sure the property exist!"
+                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9208 -Message "Failed to update the property $Property to $NewValue on subnet $SubnetID." -EntryType Error
+            }
         }
     }
 
@@ -2037,15 +2134,19 @@ function Set-Client {
         }
         [array]$Clients = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class $Class -Filter "ComputerName LIKE '%$Client%'").ComputerName
 
-        Write-Debug ""
         if ( $Clients.Count -gt 0 ) {
             foreach ( $ClientObj in $Clients ) {
+                Write-Debug "Next step - Execute method '$($PSCmdlet.ParameterSetName)' for client '$Client'"
                 try {
-                    Write-Verbose "Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM $Class Where ComputerName = '$ClientObj'"" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments "
-                    $MethodResult = Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM $Class Where ComputerName = '$ClientObj'" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments #| out-null
+                    Write-Verbose "Execute method : Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM $Class Where ComputerName = '$ClientObj'"" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments | out-null"
+                    $MethodResult = Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM $Class Where ComputerName = '$ClientObj'" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments | out-null
                     $MethodResult.ReturnValue
+                    Write-Output "Successfully executed method '$($PSCmdlet.ParameterSetName)' for client '$Client'."
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9218 -Message "Successfully executed method '$($PSCmdlet.ParameterSetName)' for client '$Client'." -EntryType Information
                 }
                 catch {
+                    Write-Output "Failed to execute method '$($PSCmdlet.ParameterSetName)' for client '$Client'."
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9219 -Message "Failed to execute method '$($PSCmdlet.ParameterSetName)' for client '$Client'." -EntryType Error
                 }
             }
         }
@@ -2058,6 +2159,104 @@ function Set-Client {
             }
             Write-Warning "No clients $TempString with the provided value of parameter Client, aborting!"
         }
+    }
+
+}
+
+# In progress
+function Push-CmdLine {
+
+    [cmdletbinding()]
+    param (
+        [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
+        [string]$Server = $env:COMPUTERNAME
+    )
+
+    begin {
+        Write-Verbose "Check server availability with Test-Connection"
+        Write-Verbose "Check if server has the StifleR WMI-Namespace"
+        Test-ServerConnection $Server
+    }
+
+    process {
+    }
+
+}
+
+# In progress
+function Push-Notification {
+
+    [cmdletbinding(DefaultParameterSetName='Client')]
+    param (
+        [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
+        [string]$Server = $env:COMPUTERNAME,
+        [Parameter(ParameterSetName='All')]
+        [switch]$All,
+        [Parameter(ParameterSetName='Subnet')]
+        [string]$SubnetID,
+        [Parameter(ParameterSetName='Client')]
+        [string]$Client,
+        [Parameter(Mandatory)]
+        [string]$Message
+    )
+
+    begin {
+        Write-Verbose "Check server availability with Test-Connection"
+        Write-Verbose "Check if server has the StifleR WMI-Namespace"
+        Test-ServerConnection $Server
+    }
+
+    process {
+
+        if ( $PSCmdlet.ParameterSetName -eq 'Subnet' ) {
+            $Arguments = @{
+                Target = $SubnetID
+                Message = $Message
+            }
+        }
+
+        if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
+            [array]$Clients = Get-CimInstance -Namespace $Namespace -Query "SELECT * FROM Connections Where ComputerName LIKE '%$Client%'" -ComputerName $Server | Select-Object ComputerName,ConnectionID
+            if ( $Clients ) {
+                foreach ( $Computer in $Clients ) {
+                    if ( $Computer.ConnectionID ) {
+                        $Arguments = @{
+                            Target = $Computer.ConnectionID
+                            messageLine1 = $Message
+                        }
+                        Invoke-CimMethod -Namespace $Namespace -ClassName StifleREngine -MethodName Notify -ComputerName $Server -Arguments $Arguments #| out-null
+                        #$Result
+                    }
+                }
+            }
+        }
+
+        if ( $Target -eq 'All' ) {
+            $Arguments = @{
+                Target = $Target
+                Message = $Message
+            }
+        }
+    }
+
+}
+
+# In progress
+function Push-PSScript {
+
+    [cmdletbinding()]
+    param (
+        [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
+        [string]$Server = $env:COMPUTERNAME
+    )
+
+    begin {
+        Write-Verbose "Check server availability with Test-Connection"
+        Write-Verbose "Check if server has the StifleR WMI-Namespace"
+        Test-ServerConnection $Server
+    }
+
+    process {
     }
 
 }
