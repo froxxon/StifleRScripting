@@ -467,4 +467,4 @@ childobjects of this subnet
 
 ## INSTALLATION
 
-Copy *'2PintFunctions.psm1'* and *.psd* to %ProgramFiles%\WindowsPowershell\Modules\2PintFunctions\ or use 'import-module <PATH>'.
+Copy *'2PintFunctions.psm1'* and *.psd1* to *'%ProgramFiles%\WindowsPowershell\Modules\2PintFunctions\'* or use 'import-module <PATH>'.
