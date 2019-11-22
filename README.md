@@ -2,11 +2,13 @@
 
 ## DESCRIPTION
 
-A recommendation at this point in time would also be to test this out in a lab environment, if such exist, first hand ;)
+*A recommendation at this point in time would also be to test this out in a lab environment, if such exist, first hand ;) This module is provided 'as is' until further notice!*
 
 Things are already possible in many ways, but if you prefer Powershell this module will make it easier to manage subnets, server configurations, read Stiflers event log, get information from and about clients, get license expiration days, link and remove Locations and much, much more without the necessity of logging in to the actual server or however you do it.
 
 ## FUTURE CHANGES
+
+<details><summary>View all</summary>
 
 - Possibility to use Web Service instead of WMI where applicable
 - Create jobs (mostly for test purposes)
@@ -14,6 +16,7 @@ Things are already possible in many ways, but if you prefer Powershell this modu
 - Execute CmdLine or PS Script
 - Get debug log files
 - etc.
+</details>
 
 ## CHANGE LOG
 
