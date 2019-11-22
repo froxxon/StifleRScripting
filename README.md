@@ -6,7 +6,7 @@ A module with some functions to make the life easier to manage StifleR Server wi
 for ease of use just copy those to %ProgramFiles%\WindowsPowershell\Modules\2PintFunctions\ or use 'import-module <PATH>'.
 A recommendation at this point in time would also be to test this out in a lab environment, if such exist, first hand ;)
 
-Things are already possible in many ways, but if you prefer Powershell this module will make it easier to manage subnets, server configurations, read Stiflers event log, get information from and about clients, link and remove Locations and much, much more without the necessity to login on the actual server or however you do it.
+Things are already possible in many ways, but if you prefer Powershell this module will make it easier to manage subnets, server configurations, read Stiflers event log, get information from and about clients, get license expiration days, link and remove Locations and much, much more without the necessity of logging in to the actual server or however you do it.
 
 ## FUTURE CHANGES
 
