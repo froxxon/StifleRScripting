@@ -9,7 +9,7 @@ Things are already possible in many ways, but if you prefer Powershell this modu
 ## FUTURE CHANGES
 
 <details><summary>View all</summary>
-
+   
 - Possibility to use Web Service instead of WMI where applicable
 - Create jobs (mostly for test purposes)
 - Send notifications to clients (if this function is still viable)
