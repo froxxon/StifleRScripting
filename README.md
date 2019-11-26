@@ -20,6 +20,12 @@ Things are already possible in many ways, but if you prefer Powershell this modu
 
 ## CHANGE LOG
 
+#### version 1.2.3 (2019-11-26)
+- Added function *'Push-StifleRCmdLine'* as *'In progress'*
+- Added function *'Push-StifleRPSScript'* as *'In progress'*
+- Added function *'Update-StifleRRules'* as *'In progress'*
+- Added function *'Update-StifleRServerList'* as *'done!'*
+
 #### version 1.2.2 (2019-11-26)
 - Changed *'Set-StifleRClient'* to *'done!'*
 - Updated CBH for *'Set-StifleRClient'*
@@ -504,6 +510,25 @@ childobjects of this subnet
 **Example 2** - Stops the StifleRServer service on server01 by killing the process of the service
 
     Stop-StifleRServerService -Server 'server01' -Force
+</details>
+
+**<details><summary>Update-StifleRServerList</summary>**
+   
+**Syntax**
+
+```Update-StiflerServerList -ServerList <string> [-Server <string>] [-Client <string>] [-Reconnect] [<CommonParameters>]```
+
+```Update-StiflerServerList [-Server <string>] [-All] [-ServerList <string>] [-Reconnect] [<CommonParameters>]```
+
+```Update-StiflerServerList [-Server <string>] [-SubnetID <string>] [-ServerList <string>] [-Reconnect] [<CommonParameters>]```
+
+**Example** - Updates server list on client01 with ServerLists specified value and reconnects after change
+
+    Update-StifleRServerList -Server server01 -Client client01 -ServerList http://stifler.domain.local:1414 -Reconnect
+
+**Example 2** - Updates server list on all clients currently connected to subnet 192.10.10.0 with ServerLists specified value, but don't reconnect after change
+
+    Update-StifleRServerList -Server server01 -Subnet 192.10.10.0 -ServerList http://stifler.domain.local:1414 -Reconnect
 </details>
 
 ## INSTALLATION
