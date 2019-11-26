@@ -715,6 +715,50 @@ function Get-EventLog {
 
 }
 
+function Get-ErrorDescription {
+
+    <#
+    .SYNOPSIS
+        Get information about error codes
+
+    .DESCRIPTION
+        Get information about error codes
+
+    .PARAMETER Server (ComputerName, Computer)
+        This will be the server hosting the StifleR Server-service.
+
+    .PARAMETER ErrorCode
+        Put the error code here to get its matching string description
+
+    .EXAMPLE
+    Get-StifleRErrorDescription -server 'server01' -ErrorCode 4062
+    Get information about what 4062 means
+
+    .FUNCTIONALITY
+        StifleR
+    #>
+
+    [CmdletBinding()]
+    param (
+        [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
+        [string]$Server = $env:COMPUTERNAME,
+        [Parameter(Mandatory)]
+        [uint32]$ErrorCode
+    )
+
+    begin {
+        Write-Verbose "Check server availability with Test-Connection"
+        Write-Verbose "Check if server has the StifleR WMI-Namespace"
+        Test-ServerConnection $Server
+    }
+
+    process {
+        $Arguments = @{ errorcode = $ErrorCode }
+        (Invoke-CimMethod -Namespace $Namespace -ClassName StifleREngine -MethodName GetErrorDescription -ComputerName $Server -Arguments $Arguments).ReturnValue
+   }
+        
+}
+
 function Get-Leader {
 
    <#
@@ -1398,19 +1442,31 @@ function Remove-Subnet {
             }
         }
 
+        [bool]$ClientsFound = $false
+        foreach ( $Subnet in $Subnets ) {
+            if ( $Subnet.Clients -ne 0 ) {
+                $ClientsFound = $true
+            }
+        }
+
         Write-Verbose "Variable - SkipConfirm : $SkipCOnfirm"
         if ( !$SkipConfirm ) {
             Write-Output "You are about to delete $($Subnets.Count) subnet(s) listed below:"
+            Write-Output " "
             if ( $ChildFound -eq $true ) {
                 Write-Output "ALL CHILD SUBNETS WILL ALSO BE REMOVED IF YOU CONTINUE !!!"
+                Write-Output " "
             }
-            Write-Output " "
+            if ( $ClientsFOund -eq $true ) {
+                Write-Output "CLIENTS ARE CURRENTLY CONNECTED TO ONE OR MORE OF THOSE SUBNETS !!!"
+                Write-Output " "
+            }
             foreach ( $Subnet in $Subnets ) {
                 $ChildCount = ''
                 if ( $Subnet.ChildCount -ne 0 ) {
                     $ChildCount = "ChildCount: $($Subnet.ChildCOunt)"
                 }
-                Write-Output "SubnetID: $($Subnet.SubnetID) LocationName: $($Subnet.LocationName) $ChildCount"
+                Write-Output "SubnetID: $($Subnet.SubnetID)`tClients: $($Subnet.Clients)`tLocationName: $($Subnet.LocationName) $ChildCount"
             }
             Write-Output " "
 
@@ -1434,13 +1490,20 @@ function Remove-Subnet {
                 }
 
                 try {
-                    if ( $PsCmdlet.ParameterSetName -eq 'LocationName' ) {
-                        Write-Verbose "Removing subnet: Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Subnets Where LocationName = '$($Subnet.LocationName)'"" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null"
-                        Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where LocationName = '$($Subnet.LocationName)'" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null
+                    if ( $ClientsFound ) {
+                        Write-Verbose "Removing subnet: Invoke-CimMethod -Namespace $Namespace -ClassName Subnets -MethodName RemoveSubnetUsingGuid -ComputerName $Server -Arguments $Arguments | out-null"
+                        $Arguments = @{ NetworkGuid = $Subnet.id ; Force = $true }
+                        Invoke-CimMethod -Namespace $Namespace -ClassName Subnets -MethodName RemoveSubnetUsingGuid -ComputerName $Server -Arguments $Arguments | out-null
                     }
                     else {
-                        Write-Verbose "Removing subnet: Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Subnets Where SubnetID = '$($Subnet.SubnetID)'"" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null"
-                        Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$($Subnet.SubnetID)'" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null
+                        if ( $PsCmdlet.ParameterSetName -eq 'LocationName' ) {
+                            Write-Verbose "Removing subnet: Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Subnets Where LocationName = '$($Subnet.LocationName)'"" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null"
+                            Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where LocationName = '$($Subnet.LocationName)'" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null
+                        }
+                        else {
+                            Write-Verbose "Removing subnet: Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Subnets Where SubnetID = '$($Subnet.SubnetID)'"" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null"
+                            Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$($Subnet.SubnetID)'" -MethodName RemoveSubnet -ComputerName $Server -Arguments $Arguments | out-null
+                        }
                     }
                     if ( !$Quiet ) {
                         If ( $ChildFound ) {
@@ -2112,11 +2175,11 @@ function Set-Leader {
 # In progress
 function Set-Client {
 
-    [cmdletbinding()]
+    [cmdletbinding(DefaultParameterSetName='Client')]
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
         [string]$Server = $env:COMPUTERNAME,
-        [Parameter(Mandatory)]
+        [Parameter(Mandatory,ParameterSetName = 'Client')]
         [string]$Client,
         [Parameter(ParameterSetName = "WOL")]
         [switch]$WOL,
