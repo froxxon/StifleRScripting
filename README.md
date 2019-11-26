@@ -232,6 +232,17 @@ For everything to work as expected the following requirements should be met:
     Get-StiflerEventLog -Server 'server01' -StartDate (Get-Date).AddMinutes(-120) -EndDate (Get-Date).AddMinutes(-60)
 </details>
 
+**<details><summary>Get-StifleRErrorDescription</summary>**
+
+**Syntax**
+
+```Get-StiflerErrorDescription [[-Server] <string>] [-ErrorCode] <uint32> [<CommonParameters>]```
+   
+**Example** Get information about what 4062 means
+
+    Get-StifleRErrorDescription -server 'server01' -ErrorCode 4062
+</details>
+
 **<details><summary>Get-StifleRLeader</summary>**
    
 **Syntax**
