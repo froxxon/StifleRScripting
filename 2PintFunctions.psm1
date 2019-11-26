@@ -2274,6 +2274,109 @@ function Test-ServerConnection {
 
 }
 
+function Update-ServerList {
+
+   <#
+    .SYNOPSIS
+        Use this to update the list of servers for the agents
+
+    .DESCRIPTION
+        Use this to update the list of servers for the agents
+        Details:
+        - Target agent based on specific client, subnet or All
+
+    .PARAMETER All
+        Specify this parameter if you want to target all connected agents
+
+    .PARAMETER Client
+        Specify this parameter if you want to target a specific connected agent based on ComputerName
+
+    .PARAMETER Subnet
+        Specify this parameter if you want to target all connected agents on a specific subnet
+
+    .PARAMETER ServerList
+        This parameter needs to contain the list of atleast one correct HTTP(s) address where the server(s) can be reachable
+
+    .PARAMETER Reconnect
+        Specify this parameter if you want the agent to reconnect after the change is made
+
+    .PARAMETER Server (ComputerName, Computer)
+        This will be the server hosting the StifleR Server-service.
+
+    .EXAMPLE
+	Update-StifleRServerList -Server server01 -Client client01 -ServerList http://stifler.domain.local:1414 -Reconnect
+        Updates server list on client01 with ServerLists specified value and reconnects after change
+
+    .EXAMPLE
+	Update-StifleRServerList -Server server01 -Subnet 192.10.10.0 -ServerList http://stifler.domain.local:1414 -Reconnect
+        Updates server list on all clients currently connected to subnet 192.10.10.0 with ServerLists specified value, but don't reconnect after change
+
+    .FUNCTIONALITY
+        StifleR
+    #>
+
+    [cmdletbinding(DefaultParameterSetName='Client')]
+    param (
+        [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
+        [string]$Server = $env:COMPUTERNAME,
+        [Parameter(ParameterSetName='All')]
+        [switch]$All,
+        [Parameter(ParameterSetName='Subnet')]
+        [string]$SubnetID,
+        [Parameter(ParameterSetName='Client')]
+        [string]$Client,
+        [Parameter(Mandatory,ParameterSetName='Client')]
+        [Parameter(ParameterSetName='All')]
+        [Parameter(ParameterSetName='Subnet')]
+        [string]$ServerList,
+        [Parameter(ParameterSetName='Client')]
+        [Parameter(ParameterSetName='All')]
+        [Parameter(ParameterSetName='Subnet')]
+        [switch]$Reconnect
+    )
+
+    begin {
+        Write-Verbose "Check server availability with Test-Connection"
+        Write-Verbose "Check if server has the StifleR WMI-Namespace"
+        Test-ServerConnection $Server
+    }
+
+    process {
+        [string]$Target = ''
+        if ( $PSCmdlet.ParameterSetName -eq 'All' ) {
+            $Target = 'All'
+        }
+        if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
+            $Target = $(Get-CimInstance -Namespace $Namespace -ClassName Connections -Filter "ComputerName = '$Client'" -ComputerName $Server).ConnectionId
+        }
+        if ( $PSCmdlet.ParameterSetName -eq 'Subnet' ) {
+            $Target = (Get-CimInstance -Namespace $Namespace -ClassName Subnets -Filter "SubnetID = '$SubnetID'" -ComputerName $Server).SubnetID
+        }
+        if ( $Target -eq '' ) {
+            Write-Warning "An error occured when trying to resolve the target, aborting!"
+            break
+        }
+
+        if ( $Reconnect ) {
+            [bool]$Reconnect = $true
+        }
+        else {
+            [bool]$Reconnect = $false
+        }
+
+        $MethodArguments = @{ Target = $Target ; ServerList = $ServerList ; reconnect = $Reconnect }
+
+        try {
+            $Execute = Invoke-CimMethod -query "Select id From StifleREngine Where id='1'" -ComputerName $Server -MethodName UpdateServerList -Namespace $Namespace -Arguments $MethodArguments -ErrorAction Stop
+            Write-Output "Successfully sent command to trigger update of Server list on $Client"
+        }
+        catch {
+            Write-Warning "Failed to send command to trigger update of Server list on $Client"
+        }
+    }
+
+}
+
 # In progress
 function Set-Leader {
 
@@ -2297,25 +2400,64 @@ function Set-Leader {
 # In progress
 function Push-CmdLine {
 
-    [cmdletbinding()]
+    [cmdletbinding(DefaultParameterSetName='Client')]
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
-        [string]$Server = $env:COMPUTERNAME
+        [string]$Server = $env:COMPUTERNAME,
+        [Parameter(ParameterSetName='All')]
+        [switch]$All,
+        [Parameter(ParameterSetName='Subnet')]
+        [string]$SubnetID,
+        [Parameter(ParameterSetName='Client')]
+        [string]$Client,
+        [Parameter(Mandatory,ParameterSetName='Client')]
+        [Parameter(ParameterSetName='All')]
+        [Parameter(ParameterSetName='Subnet')]
+        [string]$FileName,
+        [Parameter(ParameterSetName='Client')]
+        [Parameter(ParameterSetName='All')]
+        [Parameter(ParameterSetName='Subnet')]
+        [string]$Arguments
     )
 
     begin {
+        Write-Warning "Function still under development"
         Write-Verbose "Check server availability with Test-Connection"
         Write-Verbose "Check if server has the StifleR WMI-Namespace"
         Test-ServerConnection $Server
     }
 
     process {
+        [string]$Target = ''
+        if ( $PSCmdlet.ParameterSetName -eq 'All' ) {
+            $Target = 'All'
+        }
+        if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
+            $Target = $(Get-CimInstance -Namespace $Namespace -ClassName Connections -Filter "ComputerName = '$Client'" -ComputerName $Server).ConnectionId
+        }
+        if ( $PSCmdlet.ParameterSetName -eq 'Subnet' ) {
+            $Target = (Get-CimInstance -Namespace $Namespace -ClassName Subnets -Filter "SubnetID = '$SubnetID'" -ComputerName $Server).SubnetID
+        }
+        if ( $Target -eq '' ) {
+            Write-Warning "An error occured when trying to resolve the target, aborting!"
+            break
+        }
+
+        $MethodArguments = @{ Target = $Target ; fileName = $FileName ; arguments = $Arguments}
+
+        try {
+            Invoke-CimMethod -query "Select id From StifleREngine Where id='1'" -ComputerName $Server -MethodName RunCmdLine -Namespace $Namespace -Arguments $MethodArguments -ErrorAction Stop | out-null
+            Write-Output "Signal sent to start '$FileName' with arguments to $Client"
+        }
+        catch {
+            Write-Warning "Failed to send signal to start '$FileName' with arguments to $Client"
+        }
     }
 
 }
 
 # In progress
-function Push-Notification {
+function Push-PSScript {
 
     [cmdletbinding(DefaultParameterSetName='Client')]
     param (
@@ -2327,67 +2469,110 @@ function Push-Notification {
         [string]$SubnetID,
         [Parameter(ParameterSetName='Client')]
         [string]$Client,
-        [Parameter(Mandatory)]
-        [string]$Message
+        [Parameter(Mandatory,ParameterSetName='Client')]
+        [Parameter(ParameterSetName='All')]
+        [Parameter(ParameterSetName='Subnet')]
+        [string]$Script
     )
 
     begin {
+        Write-Warning "Function still under development"
         Write-Verbose "Check server availability with Test-Connection"
         Write-Verbose "Check if server has the StifleR WMI-Namespace"
         Test-ServerConnection $Server
     }
 
     process {
-
-        if ( $PSCmdlet.ParameterSetName -eq 'Subnet' ) {
-            $Arguments = @{
-                Target = $SubnetID
-                Message = $Message
-            }
+        [string]$Target = ''
+        if ( $PSCmdlet.ParameterSetName -eq 'All' ) {
+            $Target = 'All'
         }
-
         if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
-            [array]$Clients = Get-CimInstance -Namespace $Namespace -Query "SELECT * FROM Connections Where ComputerName LIKE '%$Client%'" -ComputerName $Server | Select-Object ComputerName,ConnectionID
-            if ( $Clients ) {
-                foreach ( $Computer in $Clients ) {
-                    if ( $Computer.ConnectionID ) {
-                        $Arguments = @{
-                            Target = $Computer.ConnectionID
-                            messageLine1 = $Message
-                        }
-                        Invoke-CimMethod -Namespace $Namespace -ClassName StifleREngine -MethodName Notify -ComputerName $Server -Arguments $Arguments #| out-null
-                        #$Result
-                    }
-                }
-            }
+            $Target = $(Get-CimInstance -Namespace $Namespace -ClassName Connections -Filter "ComputerName = '$Client'" -ComputerName $Server).ConnectionId
+        }
+        if ( $PSCmdlet.ParameterSetName -eq 'Subnet' ) {
+            $Target = (Get-CimInstance -Namespace $Namespace -ClassName Subnets -Filter "SubnetID = '$SubnetID'" -ComputerName $Server).SubnetID
+        }
+        if ( $Target -eq '' ) {
+            Write-Warning "An error occured when trying to resolve the target, aborting!"
+            break
         }
 
-        if ( $Target -eq 'All' ) {
-            $Arguments = @{
-                Target = $Target
-                Message = $Message
-            }
+        $MethodArguments = @{ Target = $Target ; script = $Script }
+
+        try {
+            Invoke-CimMethod -query "Select id From StifleREngine Where id='1'" -ComputerName $Server -MethodName RunPowerShellScript -Namespace $Namespace -Arguments $MethodArguments -ErrorAction Stop
+            Write-Output "Signal sent to start the Powershell code: '$Script' to $Client"
+        }
+        catch {
+            Write-Warning "Failed to send signal to start Powershell code: '$Script' to $Client"
         }
     }
 
 }
 
 # In progress
-function Push-PSScript {
+function Update-Rules {
 
-    [cmdletbinding()]
+    [cmdletbinding(DefaultParameterSetName='Client')]
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
-        [string]$Server = $env:COMPUTERNAME
+        [string]$Server = $env:COMPUTERNAME,
+        [Parameter(ParameterSetName='All')]
+        [switch]$All,
+        [Parameter(ParameterSetName='Subnet')]
+        [string]$SubnetID,
+        [Parameter(ParameterSetName='Client')]
+        [string]$Client,
+        [Parameter(Mandatory,ParameterSetName='Client')]
+        [Parameter(ParameterSetName='All')]
+        [Parameter(ParameterSetName='Subnet')]
+        [string]$RulesSource,
+        [Parameter(ParameterSetName='Client')]
+        [Parameter(ParameterSetName='All')]
+        [Parameter(ParameterSetName='Subnet')]
+        [switch]$UseBITS
     )
 
     begin {
+        Write-Warning "Function still under development"
         Write-Verbose "Check server availability with Test-Connection"
         Write-Verbose "Check if server has the StifleR WMI-Namespace"
         Test-ServerConnection $Server
     }
 
     process {
+        [string]$Target = ''
+        if ( $PSCmdlet.ParameterSetName -eq 'All' ) {
+            $Target = 'All'
+        }
+        if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
+            $Target = $(Get-CimInstance -Namespace $Namespace -ClassName Connections -Filter "ComputerName = '$Client'" -ComputerName $Server).ConnectionId
+        }
+        if ( $PSCmdlet.ParameterSetName -eq 'Subnet' ) {
+            $Target = (Get-CimInstance -Namespace $Namespace -ClassName Subnets -Filter "SubnetID = '$SubnetID'" -ComputerName $Server).SubnetID
+        }
+        if ( $Target -eq '' ) {
+            Write-Warning "An error occured when trying to resolve the target, aborting!"
+            break
+        }
+
+        if ( $UseBITS ) {
+            [bool]$UseBITS = $true
+        }
+        else {
+            [bool]$UseBITS = $false
+        }
+
+        $MethodArguments = @{ Target = $Target ; fileUrl = $RulesSource ; useBits = $UseBITS }
+
+        try {
+            $Execute = Invoke-CimMethod -query "Select id From StifleREngine Where id='1'" -ComputerName $Server -MethodName UpdateRules -Namespace $Namespace -Arguments $MethodArguments -ErrorAction Stop
+            Write-Output "Sent command to update rules on $Client from the following HTTP(s) source: $RulesSource"
+        }
+        catch {
+            Write-Warning "Failed to send command to update rules on $Client from the following HTTP(s) source: $RulesSource"
+        }
     }
 
 }
