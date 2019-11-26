@@ -2404,15 +2404,15 @@ function Push-CmdLine {
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
         [string]$Server = $env:COMPUTERNAME,
-        [Parameter(ParameterSetName='All')]
+        [Parameter(Mandatory,ParameterSetName='All')]
         [switch]$All,
-        [Parameter(ParameterSetName='Subnet')]
+        [Parameter(Mandatory,ParameterSetName='Subnet')]
         [string]$SubnetID,
-        [Parameter(ParameterSetName='Client')]
+        [Parameter(Mandatory,ParameterSetName='Client')]
         [string]$Client,
         [Parameter(Mandatory,ParameterSetName='Client')]
-        [Parameter(ParameterSetName='All')]
-        [Parameter(ParameterSetName='Subnet')]
+        [Parameter(Mandatory,ParameterSetName='All')]
+        [Parameter(Mandatory,ParameterSetName='Subnet')]
         [string]$FileName,
         [Parameter(ParameterSetName='Client')]
         [Parameter(ParameterSetName='All')]
@@ -2447,10 +2447,10 @@ function Push-CmdLine {
 
         try {
             Invoke-CimMethod -query "Select id From StifleREngine Where id='1'" -ComputerName $Server -MethodName RunCmdLine -Namespace $Namespace -Arguments $MethodArguments -ErrorAction Stop | out-null
-            Write-Output "Signal sent to start '$FileName' with arguments to $Client"
+            Write-Output "Signal sent to start '$FileName' with arguments to $Target"
         }
         catch {
-            Write-Warning "Failed to send signal to start '$FileName' with arguments to $Client"
+            Write-Warning "Failed to send signal to start '$FileName' with arguments to $Target"
         }
     }
 
@@ -2463,15 +2463,15 @@ function Push-PSScript {
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
         [string]$Server = $env:COMPUTERNAME,
-        [Parameter(ParameterSetName='All')]
+        [Parameter(Mandatory,ParameterSetName='All')]
         [switch]$All,
-        [Parameter(ParameterSetName='Subnet')]
+        [Parameter(Mandatory,ParameterSetName='Subnet')]
         [string]$SubnetID,
-        [Parameter(ParameterSetName='Client')]
+        [Parameter(Mandatory,ParameterSetName='Client')]
         [string]$Client,
         [Parameter(Mandatory,ParameterSetName='Client')]
-        [Parameter(ParameterSetName='All')]
-        [Parameter(ParameterSetName='Subnet')]
+        [Parameter(Mandatory,ParameterSetName='All')]
+        [Parameter(Mandatory,ParameterSetName='Subnet')]
         [string]$Script
     )
 
@@ -2502,10 +2502,10 @@ function Push-PSScript {
 
         try {
             Invoke-CimMethod -query "Select id From StifleREngine Where id='1'" -ComputerName $Server -MethodName RunPowerShellScript -Namespace $Namespace -Arguments $MethodArguments -ErrorAction Stop
-            Write-Output "Signal sent to start the Powershell code: '$Script' to $Client"
+            Write-Output "Signal sent to start the Powershell code: '$Script' to $Target"
         }
         catch {
-            Write-Warning "Failed to send signal to start Powershell code: '$Script' to $Client"
+            Write-Warning "Failed to send signal to start Powershell code: '$Script' to $Target"
         }
     }
 
