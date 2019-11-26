@@ -20,6 +20,10 @@ Things are already possible in many ways, but if you prefer Powershell this modu
 
 ## CHANGE LOG
 
+#### version 1.2.2 (2019-11-26)
+- Changed *'Set-StifleRClient'* to *'done!'*
+- Updated CBH for *'Set-StifleRClient'*
+
 #### version 1.2.1 (2019-11-26)
 - Added function *'Get-StifleRErrorDescription'*
 - Added *'DefaultParameterSetName = 'Client''* to *'Set-StifleRClient'*
