@@ -383,6 +383,27 @@ childobjects of this subnet
     Remove-StiflerSubnet -Server 'server01' -SubnetID 172
 </details>
 
+**<details><summary>Set-StifleRClient</summary>**
+   
+**Syntax**
+
+```Set-StiflerClient -Client <string> [-Server <string>] [<CommonParameters>]```
+
+```Set-StiflerClient [-Server <string>] [-Client <string>] [-SetNotLeaderMaterial] [<CommonParameters>]```
+
+```Set-StiflerClient [-Server <string>] [-Client <string>] [-SetClientAsNonLeader] [<CommonParameters>]```
+
+```Set-StiflerClient [-Server <string>] [-Client <string>] [-Disconnect] [<CommonParameters>]```
+
+```Set-StiflerClient -ContentID <string> [-Server <string>] [-Client <string>] [-BranchCacheFlush] [<CommonParameters>]```
+
+```Set-StiflerClient [-Server <string>] [-Client <string>] [-WOL] [<CommonParameters>]```
+
+**Example** Disconnect the client 'client01' from StifleR
+
+    Set-StifleRClient -server server01 -Client client01 -Disconnect
+</details>
+
 **<details><summary>Set-StifleRJob</summary>**
 
 **Syntax**
