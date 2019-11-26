@@ -20,13 +20,18 @@ Things are already possible in many ways, but if you prefer Powershell this modu
 
 ## CHANGE LOG
 
+#### version 1.2.1 (2019-11-26)
+- Added function *'Get-StifleRErrorDescription'*
+- Added *'DefaultParameterSetName = 'Client''* to *'Set-StifleRClient'*
+- *'Remove-StifleRSubnet'* now uses method *'RemoveSubnetUsingGuid'* if clients are currently connected to the subnet, fails otherwise
+
+<details><summary>View all</summary>
+
 #### version 1.2.0 (2019-11-21)
 - The parameter *'Method'* nor also works with *'Roaming'* in function *'Get-StifleRClient'* 
 - Added parametersets to *'Get-StifleREventLog'*
 - Added check for Child subnets before deletion with *'Remove-StifleRSubnet'*
 - Added parameters *'RemoveChildLink'* and *'LinkToParent'* to *'Set-StifleRSubnet'*
-
-<details><summary>View all</summary>
 
 #### version 1.1.9 (2019-11-19)
 - Added the parameter *'Method'* to *'Get-StifleRClient'*, available options for this parameter are *'GetBranchCacheFlags'* and *'GetConnectionFlags'*
