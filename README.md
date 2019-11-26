@@ -238,7 +238,7 @@ For everything to work as expected the following requirements should be met:
 
 ```Get-StiflerErrorDescription [[-Server] <string>] [-ErrorCode] <uint32> [<CommonParameters>]```
    
-**Example** Get information about what 4062 means
+**Example** - Get information about what 4062 means
 
     Get-StifleRErrorDescription -server 'server01' -ErrorCode 4062
 </details>
@@ -399,7 +399,7 @@ childobjects of this subnet
 
 ```Set-StiflerClient [-Server <string>] [-Client <string>] [-WOL] [<CommonParameters>]```
 
-**Example** Disconnect the client 'client01' from StifleR
+**Example** - Disconnect the client 'client01' from StifleR
 
     Set-StifleRClient -server server01 -Client client01 -Disconnect
 </details>
