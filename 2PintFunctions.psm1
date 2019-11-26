@@ -1528,6 +1528,128 @@ function Remove-Subnet {
 
 }
 
+function Set-Client {
+
+    <#
+    .SYNOPSIS
+        Execute methods for clients available in StifleR.
+
+    .DESCRIPTION
+        Execute methods for clients available in StifleR.
+        Details:
+        - Execute methods for clients available in StifleR.
+
+    .PARAMETER Client
+        Specify the full name (or partial for multiple results) of the client you want to execute methods on
+
+
+    .PARAMETER Server (ComputerName, Computer)
+        This will be the server hosting the StifleR Server-service.
+
+    .PARAMETER SetNotLeaderMaterial
+        This parameter sets a client as inable to act as a red leader
+
+    .PARAMETER SetClientAsNonLeader
+        This parameter removes a client as Red leader
+
+    .PARAMETER Disconnect
+        This parameter disconnects a client from StifleR
+
+    .PARAMETER BranchCacheFlush
+        This parameter removes specific content from the BranchCache cache
+
+    .PARAMETER ContentID
+        Combined with 'BranchCacheFlush' this removes this specific content from the BranchCache cache
+
+    .PARAMETER WOL
+        This parameter sends a Wake-On-LAN package to the client (if possible)
+
+    .EXAMPLE
+    Set-StifleRClient -server server01 -Client client01 -Disconnect
+        Disconnect the client 'client01' from StifleR
+
+    .FUNCTIONALITY
+        StifleR
+    #>
+
+    [cmdletbinding(DefaultParameterSetName='Client')]
+    param (
+        [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
+        [string]$Server = $env:COMPUTERNAME,
+        [Parameter(Mandatory,ParameterSetName = 'Client')]
+        [Parameter(ParameterSetName = "WOL")]
+        [Parameter(ParameterSetName = "BranchCacheFlush")]
+        [Parameter(ParameterSetName = "Disconnect")]
+        [Parameter(ParameterSetName = "SetClientAsNonLeader")]
+        [Parameter(ParameterSetName = "SetNotLeaderMaterial")]
+        [string]$Client,
+        [Parameter(ParameterSetName = "WOL")]
+        [switch]$WOL,
+        [Parameter(ParameterSetName = "BranchCacheFlush")]
+        [switch]$BranchCacheFlush,
+        [Parameter(Mandatory,ParameterSetName = "BranchCacheFlush")]
+        [string]$ContentID,
+        [Parameter(ParameterSetName = "Disconnect")]
+        [switch]$Disconnect,
+        [Parameter(ParameterSetName = "SetClientAsNonLeader")]
+        [switch]$SetClientAsNonLeader,
+        [Parameter(ParameterSetName = "SetNotLeaderMaterial")]
+        [switch]$SetNotLeaderMaterial
+    )
+
+    begin {
+        if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
+            Write-Warning "Missing method to be performed, add desired parameter(s), aborting!"
+            break
+        }
+
+        Write-Verbose "Check server availability with Test-Connection"
+        Write-Verbose "Check if server has the StifleR WMI-Namespace"
+        Test-ServerConnection $Server
+    }
+
+    process {
+        if ( $PSCmdlet.ParameterSetName -eq 'BranchCacheFlush' ) {
+            $Arguments = @{ ContentID = $ContentID }
+        }
+
+        if ( $WOL ) {
+            $Class = 'Clients'
+        }
+        else {
+            $Class = 'Connections'
+        }
+        [array]$Clients = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class $Class -Filter "ComputerName LIKE '%$Client%'").ComputerName
+
+        if ( $Clients.Count -gt 0 ) {
+            foreach ( $ClientObj in $Clients ) {
+                Write-Debug "Next step - Execute method '$($PSCmdlet.ParameterSetName)' for client '$Client'"
+                try {
+                    Write-Verbose "Execute method : Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM $Class Where ComputerName = '$ClientObj'"" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments | out-null"
+                    $MethodResult = Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM $Class Where ComputerName = '$ClientObj'" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments | out-null
+                    $MethodResult.ReturnValue
+                    Write-Output "Successfully executed method '$($PSCmdlet.ParameterSetName)' for client '$Client'."
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9218 -Message "Successfully executed method '$($PSCmdlet.ParameterSetName)' for client '$Client'." -EntryType Information
+                }
+                catch {
+                    Write-Output "Failed to execute method '$($PSCmdlet.ParameterSetName)' for client '$Client'."
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9219 -Message "Failed to execute method '$($PSCmdlet.ParameterSetName)' for client '$Client'." -EntryType Error
+                }
+            }
+        }
+        else {
+            if ( !$WOL ) {
+                $TempString = ' online '
+            }
+            else {
+                $TempString = ' found '
+            }
+            Write-Warning "No clients $TempString with the provided value of parameter Client, aborting!"
+        }
+    }
+
+}
+
 function Set-Job {
 
     <#
@@ -2168,77 +2290,6 @@ function Set-Leader {
     }
 
     process {
-    }
-
-}
-
-# In progress
-function Set-Client {
-
-    [cmdletbinding(DefaultParameterSetName='Client')]
-    param (
-        [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
-        [string]$Server = $env:COMPUTERNAME,
-        [Parameter(Mandatory,ParameterSetName = 'Client')]
-        [string]$Client,
-        [Parameter(ParameterSetName = "WOL")]
-        [switch]$WOL,
-        [Parameter(ParameterSetName = "BranchCacheFlush")]
-        [switch]$BranchCacheFlush,
-        [Parameter(Mandatory,ParameterSetName = "BranchCacheFlush")]
-        [string]$ContentID,
-        [Parameter(ParameterSetName = "Disconnect")]
-        [switch]$Disconnect,
-        [Parameter(ParameterSetName = "SetClientAsNonLeader")]
-        [switch]$SetClientAsNonLeader,
-        [Parameter(ParameterSetName = "SetNotLeaderMaterial")]
-        [switch]$SetNotLeaderMaterial
-    )
-
-    begin {
-        Write-Verbose "Check server availability with Test-Connection"
-        Write-Verbose "Check if server has the StifleR WMI-Namespace"
-        Test-ServerConnection $Server
-    }
-
-    process {
-        if ( $PSCmdlet.ParameterSetName -eq 'BranchCacheFlush' ) {
-            $Arguments = @{ ContentID = $ContentID }
-        }
-
-        if ( $WOL ) {
-            $Class = 'Clients'
-        }
-        else {
-            $Class = 'Connections'
-        }
-        [array]$Clients = $(Get-CIMInstance -ComputerName $Server -Namespace $Namespace -Class $Class -Filter "ComputerName LIKE '%$Client%'").ComputerName
-
-        if ( $Clients.Count -gt 0 ) {
-            foreach ( $ClientObj in $Clients ) {
-                Write-Debug "Next step - Execute method '$($PSCmdlet.ParameterSetName)' for client '$Client'"
-                try {
-                    Write-Verbose "Execute method : Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM $Class Where ComputerName = '$ClientObj'"" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments | out-null"
-                    $MethodResult = Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM $Class Where ComputerName = '$ClientObj'" -MethodName $($PSCmdlet.ParameterSetName) -ComputerName $Server -Arguments $Arguments | out-null
-                    $MethodResult.ReturnValue
-                    Write-Output "Successfully executed method '$($PSCmdlet.ParameterSetName)' for client '$Client'."
-                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9218 -Message "Successfully executed method '$($PSCmdlet.ParameterSetName)' for client '$Client'." -EntryType Information
-                }
-                catch {
-                    Write-Output "Failed to execute method '$($PSCmdlet.ParameterSetName)' for client '$Client'."
-                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9219 -Message "Failed to execute method '$($PSCmdlet.ParameterSetName)' for client '$Client'." -EntryType Error
-                }
-            }
-        }
-        else {
-            if ( !$WOL ) {
-                $TempString = ' online '
-            }
-            else {
-                $TempString = ' found '
-            }
-            Write-Warning "No clients $TempString with the provided value of parameter Client, aborting!"
-        }
     }
 
 }
