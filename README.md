@@ -12,8 +12,6 @@ Things are already possible in many ways, but if you prefer Powershell this modu
    
 - Possibility to use Web Service instead of WMI where applicable
 - Create jobs (mostly for test purposes)
-- Send notifications to clients (if this function is still viable)
-- Execute CmdLine or PS Script
 - Get debug log files
 - etc.
 </details>
