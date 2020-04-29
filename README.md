@@ -18,6 +18,15 @@ Things are already possible in many ways, but if you prefer Powershell this modu
 
 ## CHANGE LOG
 
+#### version 1.2.4 (2020-04-29)
+- Added the switch *'SetAsVPN'* to *'Set-StifleRSubnet'* (using the new WMI method to set this value instead)
+- Added the switch *'SetAsWellConnected'* to *'Set-StifleRSubnet'* (using the new WMI method to set this value instead)
+- Added the switch *'SetAsInternetBreakout'* to *'Set-StifleRSubnet'* (using the new WMI method to set this value instead)
+- Fixed *'Get-StifleRSubnet'* so it's possible to use parameter *'LocationName'* without *'SubnetID'*
+- Fixed *'Add-StifleRSubnet'* to use WMI methods instead of property to configure VPN and WellConnected settings
+
+<details><summary>View all</summary>
+
 #### version 1.2.3 (2019-11-26)
 - Added function *'Push-StifleRCmdLine'* as *'In progress'*
 - Added function *'Push-StifleRPSScript'* as *'In progress'*
@@ -32,8 +41,6 @@ Things are already possible in many ways, but if you prefer Powershell this modu
 - Added function *'Get-StifleRErrorDescription'*
 - Added *'DefaultParameterSetName = 'Client''* to *'Set-StifleRClient'*
 - *'Remove-StifleRSubnet'* now uses method *'RemoveSubnetUsingGuid'* if clients are currently connected to the subnet, fails otherwise
-
-<details><summary>View all</summary>
 
 #### version 1.2.0 (2019-11-21)
 - The parameter *'Method'* nor also works with *'Roaming'* in function *'Get-StifleRClient'* 
@@ -328,9 +335,9 @@ For everything to work as expected the following requirements should be met:
 
     Get-StiflerSubnet -Identity '21-*' -Server 'server01' | Format-Table -AutoSize
 
-**Example 2** - Pull subnets with pipeline where subnetID like '172.16' from server01 and show current red-/blue leader
+**Example 2** - Pull subnets where subnetID like '172.16' from server01 and show current red-/blue leader
 
-    '172.16' | Get-StiflerSubnet -Server 'server01' | Select-Object -uUnique LocationName, ActiveClients, AverageBandwidth, RedLeader, BlueLeader | Format-Table -AutoSize
+    Get-StiflerSubnet -Server 'server01' -SubnetID '172.16' | Select-Object -uUnique LocationName, ActiveClients, AverageBandwidth, RedLeader, BlueLeader | Format-Table -AutoSize
 
 **Example 3** - Pull all subnets from sever01 with specific properties and sorts them based on AverageBandwidth
 
