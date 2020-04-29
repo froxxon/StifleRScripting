@@ -2057,6 +2057,9 @@ function Set-Subnet {
 
     .PARAMETER SetAsWellConnected
         Enable/Disable Well Connected for specified subnet(s)
+
+    .PARAMETER SetAsInternetBreakout
+        Enable/Disable InternetBreakout for specified subnet(s)
         
     .PARAMETER Server (ComputerName, Computer)
         This will be the server hosting the StifleR Server-service.
