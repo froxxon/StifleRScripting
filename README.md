@@ -486,6 +486,12 @@ childobjects of this subnet
 
 ```Set-StiflerSubnet -SubnetID <string> [-Server <string>] [-LinkToParent <string>] [<CommonParameters>]```
 
+```Set-StiflerSubnet -SubnetID <string> [-Server <string>] [-SetAsWellConnected <bool>] [<CommonParameters>]```
+
+```Set-StiflerSubnet -SubnetID <string> [-Server <string>] [-SetAsVPN <bool>] [<CommonParameters>]```
+
+```Set-StiflerSubnet -SubnetID <string> [-Server <string>] [-SetAsInternetBreakout <bool>] [<CommonParameters>]```
+
 **Example** - Sets the property VPN to True on subnet 172.10.10.0
 
     Set-StifleRSubnet -Server server01 -SubnetID 172.10.10.0 -SetAsVPN $true
