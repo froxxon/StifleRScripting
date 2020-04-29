@@ -1,5 +1,7 @@
 ﻿#Requires -Version 5.1
 New-Variable -Name Namespace -Value 'root\StifleR' -Option AllScope
+New-Variable -Name API -Value "api" -Option AllScope
+New-Variable -Name WebService -Value $false -Option AllScope
 
 function Add-Subnet {
 
@@ -120,14 +122,14 @@ function Add-Subnet {
             if ( $VPN -eq $True ) {
                 Write-Debug "Next step - Modify property VPN"
                 try {
-                    Write-Verbose "Modifying subnet: Set-CimInstance -Namespace $Namespace -Query $SubnetQuery -Property @{VPN = $VPN } -ComputerName $Server"
-                    Set-CimInstance -Namespace $Namespace -Query $SubnetQuery -Property @{VPN = $VPN } -ComputerName $Server
+                    $Arguments = @{ value = $VPN }
+                    Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$SubnetID'" -MethodName SetAsVPN -ComputerName $Server -Arguments $Arguments -ErrorAction Stop | out-null
                     Write-Output "Successfully changed the property VPN on subnet $SubnetID to $VPN"
-                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9204 -Message "Successfully changed the property VPN on subnet $SubnetID to $VPN" -EntryType Information
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9226 -Message "Successfully changed the property VPN on subnet $SubnetID to $VPN" -EntryType Information
                 }
                 catch {
                     Write-Warning "Failed to change the property VPN on subnet $SubnetID to $VPN"
-                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9205 -Message "Failed to change the property VPN on subnet $SubnetID to $VPN" -EntryType Error
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9227 -Message "Failed to change the property VPN on subnet $SubnetID to $VPN" -EntryType Error
                 }
             }
             
@@ -135,13 +137,14 @@ function Add-Subnet {
                 Write-Debug "Next step - Modify property WellConnected"
                 try {
                     Write-Verbose "Modifying subnet: Set-CimInstance -Namespace $Namespace -Query $SubnetQuery -Property @{WellConnected = $WellConnected } -ComputerName $Server"
-                    Set-CimInstance -Namespace $Namespace -Query $SubnetQuery -Property @{WellConnected = $WellConnected } -ComputerName $Server
+                    $Arguments = @{ value = $WellConnected }
+                    Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$SubnetID'" -MethodName SetAsWellConnected -ComputerName $Server -Arguments $Arguments -ErrorAction Stop | out-null
                     Write-Output "Successfully changed the property WellConnected on subnet $SubnetID to $WellConnected"
-                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9204 -Message "Successfully changed the property WellConnected on subnet $SubnetID to $WellConnected" -EntryType Information
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9224 -Message "Successfully changed the property WellConnected on subnet $SubnetID to $WellConnected" -EntryType Information
                 }
                 catch {
                     Write-Warning "Failed to change the property WellConnected on subnet $SubnetID to $WellConnected"
-                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9205 -Message "Failed to change the property WellConnected on subnet $SubnetID to $WellConnected" -EntryType Error
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9225 -Message "Failed to change the property WellConnected on subnet $SubnetID to $WellConnected" -EntryType Error
                 }
             }
 
@@ -270,34 +273,55 @@ function Get-Client {
 
     begin {
 
-        $MissingProps = @()
-        $ClassProperties = @()
+        [array]$MissingProps = @()
+        [array]$ClassProperties = @()
 
-        Write-Verbose "Check server availability with Test-Connection"
-        Write-Verbose "Check if server has the StifleR WMI-Namespace"
-        Test-ServerConnection $Server
-
-        if ( $Roaming ) {
-            $Class = 'ClientsRoaming'
+        if ( $Server -match 'http[s]?://' ) {
+            try {
+                Invoke-RestMethod -Uri "$Server/$API" -UseDefaultCredentials -TimeoutSec 2
+            }
+            catch {
+                if ( $_.Exception.Message -match 'The remote name could not be resolved' ) {
+                    Write-Warning "The server could not be contacted (could not be resolved), aborting!"
+                    break
+                }
+                if ( $_.Exception.Message -match 'The operation has timed out' ) {
+                    Write-Warning "The server could not be contacted (timed out), verify if 'HTTP' or 'HTTPS' should be used and that the correct port is used, aborting!"
+                    break
+                }
+            }
+            $WebService = $true
         }
         else {
-            $Class = 'Clients'
+            Write-Verbose "Check server availability with Test-Connection"
+            Write-Verbose "Check if server has the StifleR WMI-Namespace"
+            Test-ServerConnection $Server
+            $WebService = $false
         }
 
-        if ( $IsConnected ) {
-            $Class = 'Connections'
-        }
-
-        if ( $Property -ne '*' ) {
-           
-            $ClassProperties = (Get-CimClass -ComputerName $Server -ClassName $Class -Namespace $Namespace ).CimClassProperties.Name
-            foreach ( $Prop in $($Property) ) {
-                if ( $ClassProperties -notcontains $Prop ) { $MissingProps += "$Prop" }
+        if ( !$WebService ) {
+            if ( $Roaming ) {
+                $Class = 'ClientsRoaming'
             }
-            if ( $MissingProps.Count -gt 0 ) { 
-                $MissingProps = $MissingProps -join ', '
-                Write-Error -Message "One or more of the following properties couldn't be found in the class $Class`: $MissingProps"
-                break
+            else {
+                $Class = 'Clients'
+            }
+
+            if ( $IsConnected ) {
+                $Class = 'Connections'
+            }
+
+            if ( $Property -ne '*' ) {
+               
+                $ClassProperties = (Get-CimClass -ComputerName $Server -ClassName $Class -Namespace $Namespace ).CimClassProperties.Name
+                foreach ( $Prop in $($Property) ) {
+                    if ( $ClassProperties -notcontains $Prop ) { $MissingProps += "$Prop" }
+                }
+                if ( $MissingProps.Count -gt 0 ) { 
+                    $MissingProps = $MissingProps -join ', '
+                    Write-Error -Message "One or more of the following properties couldn't be found in the class $Class`: $MissingProps"
+                    break
+                }
             }
         }
     
@@ -306,6 +330,9 @@ function Get-Client {
         }
         elseif ( $Roaming ) {
             $defaultProperties = @(‘ComputerName’,'Version')
+        }
+        elseif ( $WebService ) {
+            $defaultProperties = @(‘ComputerName’,'StifleRAgentId','Online')
         }
         else {
             $defaultProperties = @(‘ComputerName’,'Version','Online')
@@ -317,50 +344,72 @@ function Get-Client {
         if ( $Property -ne $Null -and $Property -notcontains '*' ) { $defaultProperties = $Property }
 
         if ( $SubnetID ) {
-            [array]$SubnetExist = Get-Subnet -Server $Server -SubnetID $SubnetID
-            if ( $SubnetExist.Count -gt 0 ) {
-                $SubnetIDExist = $True
+            [bool]$SubnetIDExist = $false
+            if ( !$WebService ) {
+                [array]$SubnetExist = Get-Subnet -Server $Server -SubnetID $SubnetID
+                if ( $SubnetExist.Count -gt 0 ) {
+                    $SubnetIDExist = $True
+                }
+                else {
+                    Write-Warning "The provided SubnetID $SubnetID does not exist, aborting!"
+                    break
+                }
             }
             else {
-                Write-Warning "The provided SubnetID, $SubnetID does not exist, aborting!"
-                break
+                [array]$SubnetExist = Invoke-RestMethod -Uri "$Server/$API/location/$SubnetID" -UseDefaultCredentials #| out-null
+                if ( $SubnetExist -ne 'null' ) {
+                    $SubnetIDExist = $True
+                }
+                else {
+                    Write-Warning "The provided SubnetID $SubnetID does not exist, aborting!"
+                    break
+                }
             }
         }
     }
 
     process {
-
         if ( $PSCmdlet.ParameterSetName -eq 'Methods' ) {
-            if ( $Roaming ) {
-                $Class = 'ClientsRoaming'
+            if ( $WebService ) {
+                Write-Warning "Those methods are not currently supported through the web service API, aborting!"
             }
             else {
-                $Class = 'Connections'
-            }
-            $MethodObj = New-Object PSObject
-            $MethodResult = @()
-            $MethodResult = $(Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM $Class Where ComputerName = '$Client'" -MethodName $Method -ComputerName $Server).ReturnValue -Split "`r`n"
-            if ( $MethodResult ) {
-                foreach ( $line in $MethodResult ) {
-                    if ( $line -ne '' ) {
-                        $Temp = $($line.Split(';'))[0]
-                        $Name = $Temp.Substring($temp.IndexOf(']')+1,$temp.Length - $temp.IndexOf(']')-1)
-                        $MethodObj | Add-member -MemberType NoteProperty -Name $Name -Value $line.split(';')[1] -Force
+                if ( $Roaming ) {
+                    $Class = 'ClientsRoaming'
+                }
+                else {
+                    $Class = 'Connections'
+                }
+                $MethodObj = New-Object PSObject
+                $MethodResult = @()
+                $MethodResult = $(Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM $Class Where ComputerName = '$Client'" -MethodName $Method -ComputerName $Server).ReturnValue -Split "`r`n"
+                if ( $MethodResult ) {
+                    foreach ( $line in $MethodResult ) {
+                        if ( $line -ne '' ) {
+                            $Temp = $($line.Split(';'))[0]
+                            $Name = $Temp.Substring($temp.IndexOf(']')+1,$temp.Length - $temp.IndexOf(']')-1)
+                            $MethodObj | Add-member -MemberType NoteProperty -Name $Name -Value $line.split(';')[1] -Force
+                        }
                     }
                 }
-            }
 
-            if ( !$MethodResult ) {
-                Write-Warning "The provided Client is missing an active connection in StifleR, aborting!"
-            }
-            else {
-                return $MethodObj
+                if ( !$MethodResult ) {
+                    Write-Warning "The provided Client is missing an active connection in StifleR, aborting!"
+                }
+                else {
+                    return $MethodObj
+                }
             }
         }
         else {
             $ClientInformation = @()
-            if ( $ExactMatch ) {
-                $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName = '$Client'" -ComputerName $Server
+            if ( $ExactMatch -or $WebService ) {
+                if ( $WebService ) {
+                    $ClientInformation = Invoke-RestMethod -Uri "$Server/$API/search/client/$Client" -UseDefaultCredentials | ConvertFrom-Json | Select-Object -ExpandProperty *
+                }
+                else {
+                    $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName = '$Client'" -ComputerName $Server
+                }
             }
             else {
                 if ( $SubnetIDExist ) {
@@ -379,12 +428,18 @@ function Get-Client {
                 }
             }
             $ClientInformation | Add-Member MemberSet PSStandardMembers $PSStandardMembers
+
         
             if ( $ClientInformation.Count -eq 0 ) {
                 Write-Warning "No events found with the matching criterias, aborting!"
             }
             else {
-                $ClientInformation | Select-Object $defaultProperties -ExcludeProperty PSComputerName,Cim*
+                if ( !$WebService ) {
+                    $ClientInformation | Select-Object $defaultProperties -ExcludeProperty PSComputerName,Cim*
+                }
+                else {
+                    $ClientInformation | Select-Object $defaultProperties #| Select-Object -ExpandProperty *
+                }
             }        
         }
     }
@@ -991,13 +1046,15 @@ function Get-ServerDebugLevel {
         try {
             [xml]$Content = Get-Content "\\$Server\$InstallDir\StifleR.Service.exe.config" -ErrorAction 1
             $CurrentValue = ($Content.configuration.appSettings.add | Where-Object { $_.Key -eq 'EnableDebugLog' }).Value
-            if ( $CurrentValue -eq '0' ) { $DebugLevel = '0 (Disabled)' }
-            if ( $CurrentValue -eq '1' ) { $DebugLevel = '1 (Errors Only)' }
-            if ( $CurrentValue -eq '2' ) { $DebugLevel = '2 (Warning)' }
-            if ( $CurrentValue -eq '3' ) { $DebugLevel = '3 (OK)' }
-            if ( $CurrentValue -eq '4' ) { $DebugLevel = '4 (Information)' }
-            if ( $CurrentValue -eq '5' ) { $DebugLevel = '5 (Debug)' }
-            if ( $CurrentValue -eq '6' ) { $DebugLevel = '6 (Super Verbose)' }
+            $DebugLevel = switch ( $CurrentValue ) {
+                0 { '0 (Disabled)'      }
+                1 { '1 (Errors Only)'   }
+                2 { '2 (Warning)'       }
+                3 { '3 (OK)'            }
+                4 { '4 (Information)'   }
+                5 { '5 (Debug)'         }
+                6 { '6 (Super Verbose)' }
+            }
             Write-Output "DebugLevel for StifleR Server is: $DebugLevel"
         }
         catch {
@@ -1081,8 +1138,8 @@ function Get-Subnet {
         Pull subnets with locationname like '21-' from server01
 
     .EXAMPLE
-        '172.16' | Get-StiflerSubnet -Server 'server01' | Select-Object -uUnique LocationName, ActiveClients, AverageBandwidth, RedLeader, BlueLeader | Format-Table -AutoSize
-        Pull subnets with pipeline where subnetID like '172.16' from server01 and show current red-/blue leader
+        Get-StiflerSubnet -Server 'server01' -SubnetID '172.16' | Select-Object -uUnique LocationName, ActiveClients, AverageBandwidth, RedLeader, BlueLeader | Format-Table -AutoSize
+        Pull subnets where subnetID like '172.16' from server01 and show current red-/blue leader
     
     .EXAMPLE
         Get-StiflerSubnet -Server 'sever01' -Property LocationName, ActiveClients, AverageBandwidth, SubnetID | Select LocationName, SubnetID, ActiveClients, AverageBandwidth, RedLeader, BlueLeader | Where ActiveClients -gt 0 | Sort AverageBandwidth, LocationName -Descending | Format-Table -AutoSize
@@ -1096,9 +1153,8 @@ function Get-Subnet {
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
         [string]$Server = $env:COMPUTERNAME,
-        #[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,HelpMessage = "This parameter is used if you want to query SubnetID(s)")]
-        [Parameter(Mandatory,HelpMessage = "Specify the subnet you want to retrieve information about",ValueFromPipeline, ValueFromPipelineByPropertyName)]
-        [Parameter(ParameterSetName ='Subnet')]
+        [Parameter(HelpMessage = "Specify the subnet you want to retrieve information about",ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Parameter(Mandatory,ParameterSetName ='Subnet')]
         [String]$SubnetID='*',
         [Parameter(HelpMessage = "This parameter is used if you want to query LocationName(s)")]
         [Parameter(Mandatory,ParameterSetName='LocationName')]
@@ -1825,13 +1881,15 @@ function Set-ServerDebugLevel {
 
     process {
         Write-Verbose "Variable - DebugLevel : $DebugLevel"
-        if ( $DebugLevel -eq '0.Disabled' ) { [string]$DebugLevel = '0' }
-        if ( $DebugLevel -eq '1.Errors Only' ) { [string]$DebugLevel = '1' }
-        if ( $DebugLevel -eq '2.Warning' ) { [string]$DebugLevel = '2' }
-        if ( $DebugLevel -eq '3.OK' ) { [string]$DebugLevel = '3' }
-        if ( $DebugLevel -eq '4.Informative' ) { [string]$DebugLevel = '4' }
-        if ( $DebugLevel -eq '5.Debug' ) { [string]$DebugLevel = '5' }
-        if ( $DebugLevel -eq '6.Super Verbose' ) { [string]$DebugLevel = '6' }
+        [string]$DebugLevel = switch ( $DebugLevel ) {
+            '0.Disabled'      { '0' }
+            '1.Errors Only'   { '1' }
+            '2.Warning'       { '2' }
+            '3.OK'            { '3' }
+            '4.Information'   { '4' }
+            '5.Debug'         { '5' }
+            '6.Super Verbose' { '6' }
+        }
         Write-Verbose "Variable - DebugLevel (corresponding number): $DebugLevel"
 
         Write-Verbose "Get content from config: Get-Content ""\\$Server\$InstallDir\StifleR.Service.exe.config"""
@@ -1993,12 +2051,21 @@ function Set-Subnet {
         
     .PARAMETER NewValue
         Specify the new value of the chosen property
+
+    .PARAMETER SetAsVPN
+        Enable/Disable VPN on specified subnet(s)
+
+    .PARAMETER SetAsWellConnected
+        Enable/Disable Well Connected for specified subnet(s)
         
     .PARAMETER Server (ComputerName, Computer)
         This will be the server hosting the StifleR Server-service.
 
     .EXAMPLE
-	Set-StifleRSubnet -Server server01 -SubnetID 172.10.10.0 -Property VPN -NewValue True
+	Set-StifleRSubnet -Server server01 -SubnetID 172.10.10.0 -Property TargetBandwidth -NewValue 20480
+        Sets the property TargetBandwidth to 20Mb/s on subnet 172.10.10.0
+
+	Set-StifleRSubnet -Server server01 -SubnetID 172.10.10.0 -SetAsVPN $true
         Sets the property VPN to True on subnet 172.10.10.0
 
     .FUNCTIONALITY
@@ -2013,11 +2080,23 @@ function Set-Subnet {
         [Parameter(Mandatory,ParameterSetName='NewValue')]
         [Parameter(Mandatory,ParameterSetName='LinkToParent')]
         [Parameter(Mandatory,ParameterSetName='RemoveChildLink')]
+        [Parameter(Mandatory,ParameterSetName='WellConnected')]
+        [Parameter(Mandatory,ParameterSetName='VPN')]
+        [Parameter(Mandatory,ParameterSetName='InternetBreakout')]
+        [Parameter(Mandatory,ParameterSetName='SetAsWellConnected')]
+        [Parameter(Mandatory,ParameterSetName='SetAsVPN')]
+        [Parameter(Mandatory,ParameterSetName='SetAsInternetBreakout')]
         [string]$SubnetID,
         [Parameter(Mandatory,ParameterSetName='NewValue')]
         [string]$Property,
         [Parameter(Mandatory,ParameterSetName='NewValue')]
         [string]$NewValue,
+        [Parameter(Mandatory,ParameterSetName='SetAsWellConnected')]
+        [bool]$SetAsWellConnected,
+        [Parameter(Mandatory,ParameterSetName='SetAsVPN')]
+        [bool]$SetAsVPN,
+        [Parameter(Mandatory,ParameterSetName='SetAsInternetBreakout')]
+        [bool]$SetAsInternetBreakout,
         [Parameter(ParameterSetName='LinkToParent')]
         [string]$LinkToParent,
         [Parameter(ParameterSetName='RemoveChildLink')]
@@ -2113,8 +2192,46 @@ function Set-Subnet {
                 Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9208 -Message "Failed to update the property $Property to $NewValue on subnet $SubnetID." -EntryType Error
             }
         }
-    }
 
+        if ( $PSCmdlet.ParameterSetName -eq 'SetAsWellConnected' ) {
+            try {
+                $Arguments = @{ value = $SetAsWellConnected }
+                Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$SubnetID'" -MethodName SetAsWellConnected -ComputerName $Server -Arguments $Arguments -ErrorAction Stop | out-null
+                Write-Output "Successfully invoked SetAsWellConnected with the following parameters: $SetAsWellConnected"
+                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9224 -Message "Successfully invoked SetAsWellConnected with the following parameters: $SetAsWellConnected" -EntryType Information
+            }            
+            catch {
+                Write-Output "Failed to invoke SetAsWellConnected with the following parameters: $SetAsWellConnected"
+                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9225 -Message "Failed to invoke SetAsWellConnected with the following parameters: $SetAsWellConnected" -EntryType Error
+            }
+        }
+
+        if ( $PSCmdlet.ParameterSetName -eq 'SetAsVPN' ) {
+            try {
+                $Arguments = @{ value = $SetAsVPN }
+                Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$SubnetID'" -MethodName SetAsVPN -ComputerName $Server -Arguments $Arguments -ErrorAction Stop | out-null
+                Write-Output "Successfully invoked SetAsVPN with the following parameters: $SetAsVPN"
+                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9226 -Message "Successfully invoked SetAsVPN with the following parameters: $SetAsVPN" -EntryType Information
+            }            
+            catch {
+                Write-Output "Failed to invoke SetAsVPN with the following parameters: $SetAsVPN"
+                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9227 -Message "Failed to invoke SetAsVPN with the following parameters: $SetAsVPN" -EntryType Error
+            }
+        }
+
+        if ( $PSCmdlet.ParameterSetName -eq 'SetAsInternetBreakout' ) {
+            try {
+                $Arguments = @{ value = $SetAsInternetBreakout }
+                Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Subnets Where SubnetID = '$SubnetID'" -MethodName SetAsVPN -ComputerName $Server -Arguments $Arguments -ErrorAction Stop | out-null
+                Write-Output "Successfully invoked SetAsInternetBreakout with the following parameters: $SetAsInternetBreakout"
+                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9228 -Message "Successfully invoked SetAsInternetBreakout with the following parameters: $SetAsInternetBreakout" -EntryType Information
+            }            
+            catch {
+                Write-Output "Failed to invoke SetAsInternetBreakout with the following parameters: $SetAsInternetBreakout"
+                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9229 -Message "Failed to invoke SetAsInternetBreakout with the following parameters: $SetAsInternetBreakout" -EntryType Error
+            }
+        }
+    }
 }
 
 function Start-ServerService {
