@@ -488,7 +488,10 @@ childobjects of this subnet
 
 **Example** - Sets the property VPN to True on subnet 172.10.10.0
 
-    Set-StifleRSubnetProperty -Server 'server01' -SubnetID 172.10.10.0 -Property VPN -NewValue True
+    Set-StifleRSubnet -Server server01 -SubnetID 172.10.10.0 -SetAsVPN $true
+**Example 2** - Sets the property TargetBandwidth to 20Mb/s on subnet 172.10.10.0
+
+    Set-StifleRSubnet -Server server01 -SubnetID 172.10.10.0 -Property TargetBandwidth -NewValue 20480
 </details>
 
 **<details><summary>Start-StifleRServerService</summary>**
