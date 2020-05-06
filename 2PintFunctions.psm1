@@ -424,6 +424,7 @@ function Get-Client {
                     }
                 }
                 else {
+                    if ( $Client -eq '*' ) { $Client = '' }
                     $ClientInformation = Get-CIMInstance -Namespace $Namespace -Class $Class -Filter "ComputerName LIKE '%$Client%'" -ComputerName $Server
                 }
             }
