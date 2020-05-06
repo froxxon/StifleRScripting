@@ -18,6 +18,9 @@ Things are already possible in many ways, but if you prefer Powershell this modu
 
 ## CHANGE LOG
 
+#### version 1.2.6 (2020-05-05)
+- Added parameter *'AgentID'* to *'Remove-StifleRClient'* for possibility to get unique objects, instead of only based on ComputerName
+
 #### version 1.2.5 (2020-05-05)
 - Fixed bug so *'*'* could be used when querying clients with *'Get-StifleRClient'* through WMI
 
@@ -362,7 +365,9 @@ For everything to work as expected the following requirements should be met:
 
 **Syntax**
 
-```Remove-StiflerClient [[-Server] <String>] [-Client] <String> [-Flush] [-Quiet] [-SkipConfirm] [<CommonParameters>]```
+```Remove-StiflerClient -Client <string> [-Server <string>] [-Flush] [-Quiet] [-SkipConfirm] [<CommonParameters>]```
+
+```Remove-StiflerClient -AgentID <string> [-Server <string>] [-Flush] [-Quiet] [-SkipConfirm] [<CommonParameters>]```
 
 **Example** - Removes the client with ComputerName Client1 and hides the confirmation
 dialog as well as the successful result message
