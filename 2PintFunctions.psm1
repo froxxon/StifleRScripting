@@ -489,7 +489,7 @@ function Get-ClientVersion {
             $VersionCount = $(Get-CimInstance -Namespace $Namespace -Query "Select * from Clients Where Version = '$Version'" -ComputerName $Server ).Count
             $VersionInfo += New-Object -TypeName psobject -Property @{Version=$Version; Clients=$VersionCount}
         }
-        $VersionInfo
+        $VersionInfo | Sort-Object Version -Descending
     }
 
 }
@@ -1292,6 +1292,10 @@ function Remove-Client {
     .PARAMETER Client
         Specify the ComputerName (or part of) of the client(s) you want to
         remove
+
+    .PARAMETER AgentID
+        Specify the AgentID (or part of) of the client(s) you want to
+        remove
         
     .PARAMETER Flush
         Specify this if a flush of the object should be performed, default is false
@@ -1324,12 +1328,17 @@ function Remove-Client {
         StifleR
     #>
 
-    [cmdletbinding()]
+    [cmdletbinding(DefaultParameterSetName='Client')]
     param (
         [Parameter(HelpMessage = "Specify StifleR server")][ValidateNotNullOrEmpty()][Alias('ComputerName','Computer','__SERVER')]
+        [Parameter(ParameterSetName='Client')]
+        [Parameter(ParameterSetName='AgentID')]
         [string]$Server = $env:COMPUTERNAME,
-        [Parameter(Mandatory=$true)]
+        #[Parameter(Mandatory=$true)]
+        [Parameter(Mandatory,ParameterSetName='Client')]
         [string]$Client,
+        [Parameter(Mandatory,ParameterSetName='AgentID')]
+        [string]$AgentID,
         [switch]$Flush,
         [switch]$Quiet,
         [switch]$SkipConfirm
@@ -1350,7 +1359,12 @@ function Remove-Client {
             $Arguments = @{ flush = $false }
         }
 
-        [array]$Clients = $(Get-CimInstance -Namespace $Namespace -Query "Select ComputerName from Clients WHERE ComputerName LIKE '%$Client%'" -ComputerName $Server).ComputerName
+        if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
+            [array]$Clients = Get-CimInstance -Namespace $Namespace -Query "Select ComputerName from Clients WHERE ComputerName LIKE '%$Client%'" -ComputerName $Server
+        }
+        else {
+            [array]$Clients = Get-CimInstance -Namespace $Namespace -Query "Select ComputerName, AgentID from Clients WHERE AgentID LIKE '%$AgentID%'" -ComputerName $Server
+        }
 
         if ( $Clients.Count -le 0 ) {
             Write-Warning "No clients found matching the input parameters, aborting!"
@@ -1360,8 +1374,13 @@ function Remove-Client {
         if ( !$SkipConfirm ) {
             Write-Output "You are about to delete $($Clients.Count) client(s) listed below:"
             Write-Output " "
-            foreach ( $Client in $Clients ) {
-                Write-Output "Client: $Client"
+            foreach ( $objClient in $Clients ) {
+                if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
+                    Write-Output "Client: $($objClient.ComputerName)"
+                }
+                else {
+                    Write-Output "Client: $($objClient.ComputerName) - $($objClient.AgentID)"
+                }
             }
             Write-Output " "
             $msg = "Are you sure? [Y/N]"
@@ -1375,19 +1394,30 @@ function Remove-Client {
         }
 
         Write-Debug "Next step - Removing clients"
-        foreach ( $Client in $Clients ) {
+        foreach ( $objClient in $Clients ) {
             try {
-                Write-Verbose "Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Clients Where ComputerName = '$Client'"" -MethodName RemoveFromDB -ComputerName $Server -Arguments $Arguments | out-null"
-                Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Clients Where ComputerName = '$Client'" -MethodName RemoveFromDB -ComputerName $Server -Arguments $Arguments | out-null
-                if ( !$Quiet ) {
-                    Write-Output "Successfully removed client: $Client"
+                if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
+                    Write-Verbose "Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Clients Where ComputerName = '$($objClient.ComputerName)'"" -MethodName RemoveFromDB -ComputerName $Server -Arguments $Arguments | out-null"
+                    Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Clients Where ComputerName = '$($objClient.ComputerName)'" -MethodName RemoveFromDB -ComputerName $Server -Arguments $Arguments | out-null
                 }
-                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9216 -Message "Successfully removed client $Client" -EntryType Information
+                else {
+                    Write-Verbose "Invoke-CimMethod -Namespace $Namespace -Query ""SELECT * FROM Clients Where AgentID = '$($objClient.$AgentID)'"" -MethodName RemoveFromDB -ComputerName $Server -Arguments $Arguments | out-null"
+                    Invoke-CimMethod -Namespace $Namespace -Query "SELECT * FROM Clients Where AgentID = '$($objClient.AgentID)'" -MethodName RemoveFromDB -ComputerName $Server -Arguments $Arguments | out-null
+                }
+                if ( !$Quiet ) {
+                    if ( $PSCmdlet.ParameterSetName -eq 'Client' ) {
+                        Write-Output "Successfully removed client: $($objClient.ComputerName)"
+                    }
+                    else {
+                        Write-Output "Successfully removed client: $($objClient.ComputerName) ($($objClient.AgentID))"
+                    }
+                }
+                Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9216 -Message "Successfully removed client $($objClient.ComputerName)" -EntryType Information
             }
             catch {
-                Write-Warning "Failed to remove client: $Client"
+                Write-Warning "Failed to remove client: $($objClient.ComputerName)"
                 if ( !$Quiet ) {
-                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9217 -Message "Failed to remove client $Client" -EntryType Error
+                    Write-EventLog -ComputerName $Server -LogName StifleR -Source "StifleR" -EventID 9217 -Message "Failed to remove client $($objClient.ComputerName)" -EntryType Error
                 }
             }
         }
