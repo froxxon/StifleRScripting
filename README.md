@@ -18,6 +18,9 @@ Things are already possible in many ways, but if you prefer Powershell this modu
 
 ## CHANGE LOG
 
+#### version 1.2.5 (2020-05-05)
+- Fixed bug so *'*'* could be used when querying clients with *'Get-StifleRClient'* through WMI
+
 #### version 1.2.4 (2020-04-29)
 - Added the switch *'SetAsVPN'* to *'Set-StifleRSubnet'* (using the new WMI method to set this value instead)
 - Added the switch *'SetAsWellConnected'* to *'Set-StifleRSubnet'* (using the new WMI method to set this value instead)
